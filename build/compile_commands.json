@@ -1,0 +1,37 @@
+[
+{
+  "directory": "/home/sy/Desktop/gongchuang/gongchaungv1/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_SERIALPORT_LIB -DQT_WIDGETS_LIB -I/home/sy/Desktop/gongchuang/gongchaungv1/build/gongchaungv1_autogen/include -isystem /usr/include/aarch64-linux-gnu/qt5 -isystem /usr/include/aarch64-linux-gnu/qt5/QtWidgets -isystem /usr/include/aarch64-linux-gnu/qt5/QtGui -isystem /usr/include/aarch64-linux-gnu/qt5/QtCore -isystem /usr/lib/aarch64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/aarch64-linux-gnu/qt5/QtSerialPort -isystem /usr/local/include/opencv4 -g -fPIC -std=gnu++17 -o CMakeFiles/gongchaungv1.dir/gongchaungv1_autogen/mocs_compilation.cpp.o -c /home/sy/Desktop/gongchuang/gongchaungv1/build/gongchaungv1_autogen/mocs_compilation.cpp",
+  "file": "/home/sy/Desktop/gongchuang/gongchaungv1/build/gongchaungv1_autogen/mocs_compilation.cpp"
+},
+{
+  "directory": "/home/sy/Desktop/gongchuang/gongchaungv1/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_SERIALPORT_LIB -DQT_WIDGETS_LIB -I/home/sy/Desktop/gongchuang/gongchaungv1/build/gongchaungv1_autogen/include -isystem /usr/include/aarch64-linux-gnu/qt5 -isystem /usr/include/aarch64-linux-gnu/qt5/QtWidgets -isystem /usr/include/aarch64-linux-gnu/qt5/QtGui -isystem /usr/include/aarch64-linux-gnu/qt5/QtCore -isystem /usr/lib/aarch64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/aarch64-linux-gnu/qt5/QtSerialPort -isystem /usr/local/include/opencv4 -g -fPIC -std=gnu++17 -o CMakeFiles/gongchaungv1.dir/main.cpp.o -c /home/sy/Desktop/gongchuang/gongchaungv1/main.cpp",
+  "file": "/home/sy/Desktop/gongchuang/gongchaungv1/main.cpp"
+},
+{
+  "directory": "/home/sy/Desktop/gongchuang/gongchaungv1/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_SERIALPORT_LIB -DQT_WIDGETS_LIB -I/home/sy/Desktop/gongchuang/gongchaungv1/build/gongchaungv1_autogen/include -isystem /usr/include/aarch64-linux-gnu/qt5 -isystem /usr/include/aarch64-linux-gnu/qt5/QtWidgets -isystem /usr/include/aarch64-linux-gnu/qt5/QtGui -isystem /usr/include/aarch64-linux-gnu/qt5/QtCore -isystem /usr/lib/aarch64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/aarch64-linux-gnu/qt5/QtSerialPort -isystem /usr/local/include/opencv4 -g -fPIC -std=gnu++17 -o CMakeFiles/gongchaungv1.dir/mainwindow.cpp.o -c /home/sy/Desktop/gongchuang/gongchaungv1/mainwindow.cpp",
+  "file": "/home/sy/Desktop/gongchuang/gongchaungv1/mainwindow.cpp"
+},
+{
+  "directory": "/home/sy/Desktop/gongchuang/gongchaungv1/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_SERIALPORT_LIB -DQT_WIDGETS_LIB -I/home/sy/Desktop/gongchuang/gongchaungv1/build/gongchaungv1_autogen/include -isystem /usr/include/aarch64-linux-gnu/qt5 -isystem /usr/include/aarch64-linux-gnu/qt5/QtWidgets -isystem /usr/include/aarch64-linux-gnu/qt5/QtGui -isystem /usr/include/aarch64-linux-gnu/qt5/QtCore -isystem /usr/lib/aarch64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/aarch64-linux-gnu/qt5/QtSerialPort -isystem /usr/local/include/opencv4 -g -fPIC -std=gnu++17 -o CMakeFiles/gongchaungv1.dir/videothread.cpp.o -c /home/sy/Desktop/gongchuang/gongchaungv1/videothread.cpp",
+  "file": "/home/sy/Desktop/gongchuang/gongchaungv1/videothread.cpp"
+},
+{
+  "directory": "/home/sy/Desktop/gongchuang/gongchaungv1/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_SERIALPORT_LIB -DQT_WIDGETS_LIB -I/home/sy/Desktop/gongchuang/gongchaungv1/build/gongchaungv1_autogen/include -isystem /usr/include/aarch64-linux-gnu/qt5 -isystem /usr/include/aarch64-linux-gnu/qt5/QtWidgets -isystem /usr/include/aarch64-linux-gnu/qt5/QtGui -isystem /usr/include/aarch64-linux-gnu/qt5/QtCore -isystem /usr/lib/aarch64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/aarch64-linux-gnu/qt5/QtSerialPort -isystem /usr/local/include/opencv4 -g -fPIC -std=gnu++17 -o CMakeFiles/gongchaungv1.dir/serialcontrol.cpp.o -c /home/sy/Desktop/gongchuang/gongchaungv1/serialcontrol.cpp",
+  "file": "/home/sy/Desktop/gongchuang/gongchaungv1/serialcontrol.cpp"
+},
+{
+  "directory": "/home/sy/Desktop/gongchuang/gongchaungv1/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_SERIALPORT_LIB -DQT_WIDGETS_LIB -I/home/sy/Desktop/gongchuang/gongchaungv1/build/gongchaungv1_autogen/include -isystem /usr/include/aarch64-linux-gnu/qt5 -isystem /usr/include/aarch64-linux-gnu/qt5/QtWidgets -isystem /usr/include/aarch64-linux-gnu/qt5/QtGui -isystem /usr/include/aarch64-linux-gnu/qt5/QtCore -isystem /usr/lib/aarch64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/aarch64-linux-gnu/qt5/QtSerialPort -isystem /usr/local/include/opencv4 -g -fPIC -std=gnu++17 -o CMakeFiles/gongchaungv1.dir/carcontroller.cpp.o -c /home/sy/Desktop/gongchuang/gongchaungv1/carcontroller.cpp",
+  "file": "/home/sy/Desktop/gongchuang/gongchaungv1/carcontroller.cpp"
+},
+{
+  "directory": "/home/sy/Desktop/gongchuang/gongchaungv1/build",
+  "command": "/usr/bin/aarch64-linux-gnu-g++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_SERIALPORT_LIB -DQT_WIDGETS_LIB -I/home/sy/Desktop/gongchuang/gongchaungv1/build/gongchaungv1_autogen/include -isystem /usr/include/aarch64-linux-gnu/qt5 -isystem /usr/include/aarch64-linux-gnu/qt5/QtWidgets -isystem /usr/include/aarch64-linux-gnu/qt5/QtGui -isystem /usr/include/aarch64-linux-gnu/qt5/QtCore -isystem /usr/lib/aarch64-linux-gnu/qt5/mkspecs/linux-g++ -isystem /usr/include/aarch64-linux-gnu/qt5/QtSerialPort -isystem /usr/local/include/opencv4 -g -fPIC -std=gnu++17 -o CMakeFiles/gongchaungv1.dir/armcontroller.cpp.o -c /home/sy/Desktop/gongchuang/gongchaungv1/armcontroller.cpp",
+  "file": "/home/sy/Desktop/gongchuang/gongchaungv1/armcontroller.cpp"
+}
+]
