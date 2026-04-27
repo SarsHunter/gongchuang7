@@ -18,6 +18,10 @@ TaskManager::TaskManager(CarController *car,
     connect(m_car, &CarController::taskFinished,
             this,  &TaskManager::onDeviceTaskFinished);
 
+    // Car 底盘对准完成 → onDeviceTaskFinished
+    connect(m_car, &CarController::alignFinished,
+            this,  &TaskManager::onDeviceTaskFinished);
+
     // Arm 完成完整 ArmTrack（三步全部走完）→ onDeviceTaskFinished
     connect(m_arm, &ArmController::taskFinished,
             this,  &TaskManager::onDeviceTaskFinished);
@@ -154,6 +158,19 @@ void TaskManager::executeCurrentTask()
         //   Step3: 摄像头扫到码 → onQRCodeScanned() → 推进到下一任务
         m_qrProcessed = false;
         m_arm->armToScanPosition();   // 先让机械臂到扫码姿态
+        break;
+
+    // ── 小车底盘视觉对准 ──
+    case TaskType::CarAlign:
+        // 延时 500ms 等小车停稳，再开启视觉检测和对准
+        {
+            int color = m_currentTask.params.value("color", 1).toInt();
+            QTimer::singleShot(500, this, [this, color]() {
+                if (!m_running) return;
+                emit chassisAlignStarted(color);
+                m_car->startChassisTracking();
+            });
+        }
         break;
     }
 }

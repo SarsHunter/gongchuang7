@@ -10,8 +10,7 @@ videothread::videothread(int camera, QMutex *lock)
 
     data_lock=lock;
 
-    red1Threshold ={0,10,43,255,46,255};
-    red2Threshold ={170,180,43,255,46,255};
+    redThreshold ={170,180,43,255,46,255};
 
     greenThreshold ={35,85,43,255,46,255};
     blueThreshold  ={100,130,43,255,46,255};
@@ -363,10 +362,9 @@ void videothread::setHSVThreshold(int hMin,int hMax,
 
     HSVThreshold *th=nullptr;
 
-    if(currentColorType==1) th=&red1Threshold;
-    if(currentColorType==2) th=&red2Threshold;
-    if(currentColorType==3) th=&greenThreshold;
-    if(currentColorType==4) th=&blueThreshold;
+    if(currentColorType==1) th=&redThreshold;
+    if(currentColorType==2) th=&greenThreshold;
+    if(currentColorType==3) th=&blueThreshold;
 
     if(th)
     {
@@ -384,7 +382,7 @@ void videothread::setColorType(int type)
 {
     QMutexLocker locker(data_lock);
 
-    if (type < 1 || type > 4) return;
+    if (type < 1 || type > 3) return;
 
     currentColorType = type;
 }
@@ -395,13 +393,12 @@ HSVThreshold videothread::getThreshold(int type)
 
     switch(type)
     {
-    case 1: return red1Threshold;
-    case 2: return red2Threshold;
-    case 3: return greenThreshold;
-    case 4: return blueThreshold;
+    case 1: return redThreshold;
+    case 2: return greenThreshold;
+    case 3: return blueThreshold;
     }
 
-    return red1Threshold;
+    return redThreshold;
 }
 
 
@@ -412,42 +409,20 @@ cv::Mat videothread::createMask(cv::Mat &frame)
 
     cv::cvtColor(frame,hsv,cv::COLOR_BGR2HSV);
 
-    HSVThreshold red1,red2,th;
+    HSVThreshold th;
 
     {
         QMutexLocker locker(data_lock);
 
-        red1 = red1Threshold;
-        red2 = red2Threshold;
-
-        if(currentColorType==3) th = greenThreshold;
-        if(currentColorType==4) th = blueThreshold;
+        if(currentColorType==1) th = redThreshold;
+        if(currentColorType==2) th = greenThreshold;
+        if(currentColorType==3) th = blueThreshold;
     }
 
-    // ºìÉ«¼ì²â
-    if(currentColorType==1 || currentColorType==2)
-    {
-        cv::Mat mask1,mask2;
-
-        cv::inRange(hsv,
-                    cv::Scalar(red1.h_min,red1.s_min,red1.v_min),
-                    cv::Scalar(red1.h_max,red1.s_max,red1.v_max),
-                    mask1);
-
-        cv::inRange(hsv,
-                    cv::Scalar(red2.h_min,red2.s_min,red2.v_min),
-                    cv::Scalar(red2.h_max,red2.s_max,red2.v_max),
-                    mask2);
-
-        cv::bitwise_or(mask1,mask2,mask);
-    }
-    else
-    {
-        cv::inRange(hsv,
-                    cv::Scalar(th.h_min,th.s_min,th.v_min),
-                    cv::Scalar(th.h_max,th.s_max,th.v_max),
-                    mask);
-    }
+    cv::inRange(hsv,
+                cv::Scalar(th.h_min,th.s_min,th.v_min),
+                cv::Scalar(th.h_max,th.s_max,th.v_max),
+                mask);
 
     cv::Mat kernel=cv::getStructuringElement(
         cv::MORPH_ELLIPSE,

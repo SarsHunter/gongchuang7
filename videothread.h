@@ -81,8 +81,7 @@ private:
 
     int currentColorType;
 
-    HSVThreshold red1Threshold;
-    HSVThreshold red2Threshold;
+    HSVThreshold redThreshold;
     HSVThreshold greenThreshold;
     HSVThreshold blueThreshold;
 

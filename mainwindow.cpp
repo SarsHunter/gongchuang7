@@ -71,6 +71,20 @@ void MainWindow::initUI()
         if (capturer) capturer->enableQRDetect(false);
     });
 
+    // CarAlign 任务开始：设置颜色并开启圆形检测，给小车底盘喂误差
+    connect(m_taskManager, &TaskManager::chassisAlignStarted, this, [this](int color) {
+        if (!capturer) openCamera();
+        if (capturer) {
+            capturer->setColorType(color);
+            capturer->enableCircleDetect(true);
+        }
+    });
+
+    // CarAlign 任务完成：关闭圆形检测
+    connect(m_taskManager, &TaskManager::chassisAlignDone, this, [this]() {
+        if (capturer) capturer->enableCircleDetect(false);
+    });
+
     // ArmTrack Step1 开始：确保摄像头已打开，并开启圆形检测
     // 圆形检测产生的 circleError 信号驱动机械臂视觉伺服
     connect(m_taskManager, &TaskManager::armTrackingStarted, this, [this]() {
@@ -158,10 +172,11 @@ QList<Task> MainWindow::loadTasksFromJson(const QString &filePath)
     }
 
     static const QMap<QString, TaskType> typeMap {
-        {"CarMove",  TaskType::CarMove},
-        {"CarTurn",  TaskType::CarTurn},
-        {"ArmTrack", TaskType::ArmTrack},
-        {"QRScan",   TaskType::QRScan},
+        {"CarMove",   TaskType::CarMove},
+        {"CarTurn",   TaskType::CarTurn},
+        {"ArmTrack",  TaskType::ArmTrack},
+        {"QRScan",    TaskType::QRScan},
+        {"CarAlign",  TaskType::CarAlign},
     };
 
     for (const QJsonValue &val : doc.array()) {
@@ -224,6 +239,9 @@ void MainWindow::openCamera()
 
     connect(capturer, &videothread::circleError,
             m_armCtrl, &ArmController::updateError, Qt::QueuedConnection);
+
+    connect(capturer, &videothread::circleError,
+            m_carCtrl, &CarController::updateAlignError, Qt::QueuedConnection);
 
     capturer->start();
 
@@ -391,10 +409,11 @@ void MainWindow::enableManualUI()
 void MainWindow::updateTaskTable(const QList<Task> &queue)
 {
     static const QMap<TaskType, QString> typeNames {
-        {TaskType::CarMove,  "CarMove"},
-        {TaskType::CarTurn,  "CarTurn"},
-        {TaskType::ArmTrack, "ArmTrack"},
-        {TaskType::QRScan,   "QRScan"},
+        {TaskType::CarMove,   "CarMove"},
+        {TaskType::CarTurn,   "CarTurn"},
+        {TaskType::ArmTrack,  "ArmTrack"},
+        {TaskType::QRScan,    "QRScan"},
+        {TaskType::CarAlign,  "CarAlign"},
     };
 
     ui->taskTable->setRowCount(queue.size());

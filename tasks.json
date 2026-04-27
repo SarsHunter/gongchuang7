@@ -5,32 +5,43 @@
     "params": {}
 },
 
+{ "type": "CarAlign", "params": { "color": 2 } },
+
 
 {
-  "type": "ArmTrack",
-  "params": {  "op": 1 ,"side": 0}
-},
-{
-  "type": "ArmTrack",
-  "params": {  "op": 1 ,"side": 0 }
-},
-{
-  "type": "ArmTrack",
-  "params": { "op": 1 ,"side": 0 }
+    "type": "QRScan",
+    "params": {}
 },
 
 {
   "type": "ArmTrack",
-  "params": {  "op": 1 ,"side": 1}
+  "params": {  "op": 3 ,"side": 0}
 },
 {
   "type": "ArmTrack",
-  "params": {  "op": 1 ,"side": 1 }
+  "params": {  "op": 3 ,"side": 0 }
 },
 {
   "type": "ArmTrack",
-  "params": { "op": 1 ,"side": 1 }
+  "params": { "op": 3 ,"side": 0 }
 },
+
+{
+  "type": "ArmTrack",
+  "params": {  "op": 4 ,"side": 1}
+},
+{
+  "type": "ArmTrack",
+  "params": {  "op": 4 ,"side": 1 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "op": 4 ,"side": 1 }
+},
+
+
+
+
 
 
   {

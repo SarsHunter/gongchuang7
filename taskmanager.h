@@ -10,10 +10,11 @@ class ArmController;
 
 // ─── 任务类型 ───────────────────────────────────────────────
 enum class TaskType {
-    CarMove,   // 小车直线运动
-    CarTurn,   // 小车原地转向
-    ArmTrack,  // 机械臂：移到目标 → 视觉追踪 → 放置
-    QRScan,    // 扫码，结果写入后续 ArmTrack 的 param
+    CarMove,    // 小车直线运动
+    CarTurn,    // 小车原地转向
+    ArmTrack,   // 机械臂：移到目标 → 视觉追踪 → 放置
+    QRScan,     // 扫码，结果写入后续 ArmTrack 的 param
+    CarAlign,   // 小车底盘视觉对准（停稳后延时启动）
 };
 
 // ─── 任务结构体 ─────────────────────────────────────────────
@@ -55,11 +56,13 @@ signals:
     void taskFinished();
     void allTasksFinished();
     void taskStopped();
-    void waitingForQR();        // 通知 MainWindow 开启 QR 检测
-    void qrScanCompleted();     // QR 扫码完成，关闭 QR 检测
-    void armTrackingStarted();  // ArmTrack Step1 开始，通知 MainWindow 开启圆形检测
-    void armTrackingDone();     // ArmTrack Step1 完成，通知 MainWindow 关闭圆形检测
+    void waitingForQR();         // 通知 MainWindow 开启 QR 检测
+    void qrScanCompleted();      // QR 扫码完成，关闭 QR 检测
+    void armTrackingStarted();   // ArmTrack Step1 开始，通知 MainWindow 开启圆形检测
+    void armTrackingDone();      // ArmTrack Step1 完成，通知 MainWindow 关闭圆形检测
     void armTrackColorChanged(int color);
+    void chassisAlignStarted(int color);  // CarAlign 开始，通知 MainWindow 开启圆形检测（带颜色）
+    void chassisAlignDone();              // CarAlign 完成，通知 MainWindow 关闭圆形检测
 
 public slots:
     void onDeviceTaskFinished();               // Car / Arm 完整任务完成

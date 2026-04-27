@@ -146,9 +146,9 @@ void CarController::startChassisTracking()
     m_alignGeneration++;
     int myGen = m_alignGeneration;
 
-    // 初始化误差为大值，防止误入死区
-    alignErrorX = 1000;
-    alignErrorY = 1000;
+    // 初始化误差为0，等待摄像头第一次更新
+    alignErrorX = 0;
+    alignErrorY = 0;
 
     alignTimer->start(50);  // 20Hz
 
