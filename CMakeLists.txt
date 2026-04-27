@@ -17,22 +17,28 @@ find_package(OpenCV REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZBAR REQUIRED IMPORTED_TARGET zbar)
 
-
 set(PROJECT_SOURCES
-        main.cpp
-        mainwindow.cpp
-        mainwindow.h
-        mainwindow.ui
+    main.cpp
+    mainwindow.cpp
+    mainwindow.h
+    mainwindow.ui
 
-        videothread.cpp
-        videothread.h
+    videothread.cpp
+    videothread.h
 
-        serialcontrol.h
-        serialcontrol.cpp
-        carcontroller.h
-        carcontroller.cpp
-        armcontroller.h
-        armcontroller.cpp
+    serialcontrol.h
+    serialcontrol.cpp
+
+    carcontroller.h
+    carcontroller.cpp
+
+    armcontroller.h
+    armcontroller.cpp
+
+    taskmanager.h
+    taskmanager.cpp
+
+    sharedserial.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -40,27 +46,20 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
     )
-# Define target properties for Android with Qt 6 as:
-#    set_property(TARGET gongchaungv1 APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
-#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
-# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
 else()
     if(ANDROID)
-        add_library(gongchaungv1 SHARED
-            ${PROJECT_SOURCES}
-        )
-# Define properties for Android with Qt 5 after find_package() calls as:
-#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
+        add_library(gongchaungv1 SHARED ${PROJECT_SOURCES})
     else()
-        add_executable(gongchaungv1
-            ${PROJECT_SOURCES}
-        )
+        add_executable(gongchaungv1 ${PROJECT_SOURCES})
     endif()
 endif()
 
-target_link_libraries(gongchaungv1 PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::SerialPort)
-target_link_libraries(gongchaungv1 PRIVATE ${OpenCV_LIBS})
-target_link_libraries(gongchaungv1 PRIVATE PkgConfig::ZBAR)  # <--- 新增 2：链接 ZBar
+target_link_libraries(gongchaungv1 PRIVATE
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::SerialPort
+    ${OpenCV_LIBS}
+    PkgConfig::ZBAR
+)
 
 set_target_properties(gongchaungv1 PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com
@@ -72,7 +71,8 @@ set_target_properties(gongchaungv1 PROPERTIES
 
 install(TARGETS gongchaungv1
     BUNDLE DESTINATION .
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
 
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(gongchaungv1)

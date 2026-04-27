@@ -4,20 +4,14 @@
 #include <QMainWindow>
 #include <QGraphicsView>
 #include <QGraphicsScene>
-
-
 #include <QMutex>
 
-
+#include "taskmanager.h"
 #include "carcontroller.h"
 #include "armcontroller.h"
-
 #include "videothread.h"
-#include "opencv2/opencv.hpp"
 
-
-
-
+#include <opencv2/opencv.hpp>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -28,80 +22,101 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+private:
+    // ── 初始化 ──
     void initUI();
+    void initCamera();
+
+    // ── JSON 加载 ──
+    QList<Task> loadTasksFromJson(const QString &filePath);
+
+    // ── 任务表格 ──
+    void updateTaskTable      (const QList<Task> &queue);
+    void highlightCurrentTask (int index);
+
+    // ── UI 锁定 ──
+    void disableManualUI();
+    void enableManualUI();
+
+    // ── QR 解析 ──
+    QList<int> parseQRCode(const QString &text, int side);
 
 private slots:
-    //cam
-    void updateFrame(cv::Mat*);
+    // 摄像头
     void openCamera();
+    void updateFrame  (QImage frame);
+    void updatePreview(QImage mask);
 
-    //更新预览图的槽函数
-    void updatePreview(cv::Mat *);
-
-
+    // 圆形检测
     void on_detectBtn_clicked();
 
-    //测试
-    // 自动连接槽函数，命名规则：on_对象名_信号名()
-       void on_frontBtn_clicked();  // 前进
-       void on_backBtn_clicked();   // 后退
-       void on_leftBtn_clicked();   // 左转
-       void on_rightBtn_clicked();  // 右转
-//       void on_stopBtn_clicked();   // 停止
+    // 手动移动
+    void on_frontBtn_clicked();
+    void on_backBtn_clicked();
+    void on_leftBtn_clicked();
+    void on_rightBtn_clicked();
 
-       //更新hsv阈值
-       void on_hMaxSlider_valueChanged(int value);
-       void on_hMinSlider_valueChanged(int value);
-       void on_sMaxSlider_valueChanged(int value);
-       void on_sMinSlider_valueChanged(int value);
-       void on_vMaxSlider_valueChanged(int value);
-       void on_vMinSlider_valueChanged(int value);
+    // 视觉追踪
+    void on_trackBtn_clicked();
 
-       // 如果实现了 SpinBox 的回调，也要加上
-           void on_hMaxSpin_valueChanged(int arg1);
-       void on_hMinSpin_valueChanged(int arg1);
-       void on_sMaxSpin_valueChanged(int arg1);
-       void on_sMinSpin_valueChanged(int arg1);
-       void on_vMaxSpin_valueChanged(int arg1);
-       void on_vMinSpin_valueChanged(int arg1);
+    // HSV 滑条 / SpinBox 联动
+    void on_hMaxSlider_valueChanged(int value);
+    void on_hMinSlider_valueChanged(int value);
+    void on_sMaxSlider_valueChanged(int value);
+    void on_sMinSlider_valueChanged(int value);
+    void on_vMaxSlider_valueChanged(int value);
+    void on_vMinSlider_valueChanged(int value);
 
-       void updateHSVThreshold(); // 统一更新阈值
+    void on_hMaxSpin_valueChanged(int value);
+    void on_hMinSpin_valueChanged(int value);
+    void on_sMaxSpin_valueChanged(int value);
+    void on_sMinSpin_valueChanged(int value);
+    void on_vMaxSpin_valueChanged(int value);
+    void on_vMinSpin_valueChanged(int value);
 
+    void on_colorComboBox_currentIndexChanged(int index);
+    void updateHSVThreshold();
 
+    // 任务管理
+    void on_RunBtn_clicked();       // 选择 JSON → 加载 → 按顺序执行
+    void on_loadJsonBtn_clicked();  // 仅加载，不执行
+    void on_doBtn_clicked();        // 执行已加载的队列
+    void on_addTaskBtn_clicked();   // 手动添加一个 ArmTrack 任务
+
+    // 测试
+    void on_testBtn_clicked();
+    void on_testBtn2_clicked();
+
+signals:
+    void setHSV(int hMin, int hMax, int sMin, int sMax, int vMin, int vMax);
 
 private:
     Ui::MainWindow *ui;
 
-    SerialControl *serial;
+    // 摄像头
+    videothread    *capturer   = nullptr;
+    QMutex         *data_lock  = nullptr;
 
+    // 显示场景
+    QGraphicsScene *imageScene   = nullptr;
+    QGraphicsScene *previewScene = nullptr;
 
+    // 控制器
+    CarController  *m_carCtrl    = nullptr;
+    ArmController  *m_armCtrl    = nullptr;
 
-    QGraphicsScene *imageScene;
-    QGraphicsView *imageView;
+    // 任务管理器
+    TaskManager    *m_taskManager = nullptr;
 
-    // 新增：预览界面的 Scene
-    QGraphicsScene *previewScene;
+    // 状态标志
+    bool isDetecting = false;
+    bool isTracking  = false;
 
-
-
-    cv::Mat currentFrame;
-    cv::Mat currentMask;
-    //for videothread
-    QMutex *data_lock;
-    videothread *capturer;
-
-
-
-
-
-    bool isDetecting;
-
-
-    //
-    ArmController *m_armCtrl;   //机械臂控制
-    CarController *m_carCtrl;    // 地盘控制器实例指针
+    // 最近一次 QR 扫码结果
+    QString m_qrResult;
 };
+
 #endif // MAINWINDOW_H

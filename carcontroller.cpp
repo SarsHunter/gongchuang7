@@ -1,12 +1,14 @@
 #include "carcontroller.h"
+#include "sharedserial.h"
 
 #include <QDebug>
 #include <QCoreApplication>
+#include <QTimer>
+#include <cmath>
 
 CarController::CarController(QObject *parent) : QObject(parent)
 {
-    // 根据RK3588平台，串口可能是 /dev/ttyS1 或 /dev/ttyTHS1
-    serial = new SerialControl("/dev/ttyS4", 115200, this);
+    serial = SharedSerial::instance();
 
     connect(serial, &SerialControl::dataReceived,
             this, &CarController::handleSerialData);
@@ -15,6 +17,11 @@ CarController::CarController(QObject *parent) : QObject(parent)
                 currentStatus = "连接错误: " + error;
                 emit statusChanged(currentStatus);
             });
+
+    // 底盘对准定时器（不自动启动）
+    alignTimer = new QTimer(this);
+    connect(alignTimer, &QTimer::timeout,
+            this, &CarController::chassisTracking);
 }
 
 CarController::~CarController()
@@ -24,47 +31,44 @@ CarController::~CarController()
 
 void CarController::carMoveDistance(int direction, float v, float d)
 {
+    if (!serial) {
+        qDebug() << "[CarCtrl] serial is null!";
+        emit taskFinished();
+        return;
+    }
+
     if (!serial->isOpen()) {
         emit statusChanged("串口未连接");
         return;
     }
 
-    // 1. 将浮点数转换为整数 (假设单位是 cm 和 cm/s，如果需要小数精度，请先乘以倍数)
     int16_t distanceInt = static_cast<int16_t>(d * 10);
     int16_t velocityInt = static_cast<int16_t>(v * 10);
 
-    QByteArray cmd;
+    quint8 cmd = 0x01;
 
-    // 2. 组包
-    cmd.append(0xAB);                 // 帧头
-    cmd.append(0x09);                 // 包长
-    cmd.append(0x01);                 // 模式
-    cmd.append(static_cast<char>(direction & 0xFF)); // 方向
+    quint8 distLow  = static_cast<quint8>(distanceInt & 0xFF);
+    quint8 distHigh = static_cast<quint8>((distanceInt >> 8) & 0xFF);
 
-    // 距离 (低位在前)
-    cmd.append(static_cast<char>(distanceInt & 0xFF));
-    cmd.append(static_cast<char>((distanceInt >> 8) & 0xFF));
+    quint8 velLow   = static_cast<quint8>(velocityInt & 0xFF);
+    quint8 velHigh  = static_cast<quint8>((velocityInt >> 8) & 0xFF);
 
-    // 速度 (低位在前)
-    cmd.append(static_cast<char>(velocityInt & 0xFF));
-    cmd.append(static_cast<char>((velocityInt >> 8) & 0xFF));
+    serial->sendPacket(
+        0xAB,
+        cmd,
+        static_cast<quint8>(direction),
+        distLow,
+        distHigh,
+        velLow,
+        velHigh
+    );
 
-    // 3. 计算校验和 (修正了 data -> cmd)
-    quint8 checksum = 0;
-    for (int i = 0; i < cmd.size(); ++i) {
-        checksum += static_cast<quint8>(cmd[i]);
-    }
-    cmd.append(checksum);
-
-    // 4. 发送
-    serial->sendData(cmd);
-
-    // 5. 更新状态 (修正了变量名)
     currentStatus = QString("指令发送: 方向=%1, 速度=%2, 距离=%3")
-                       .arg(direction).arg(velocityInt / 10).arg(distanceInt / 10);
+                        .arg(direction)
+                        .arg(velocityInt / 10.0)
+                        .arg(distanceInt / 10.0);
     emit statusChanged(currentStatus);
 }
-
 
 void CarController::carMoveSpeed(float speed)
 {
@@ -72,13 +76,29 @@ void CarController::carMoveSpeed(float speed)
         emit statusChanged("串口未连接");
         return;
     }
+}
 
-//    QByteArray cmd;
-////    cmd.append(QString("DIST:%1,%2\n").arg(distance).arg(speed).toUtf8());
-//    serial->sendData(cmd);
+void CarController::carTurn(int angle, int8_t dir)
+{
+    if (!serial || !serial->isOpen()) {
+        emit statusChanged("串口未连接");
+        emit taskFinished();
+        return;
+    }
 
-//    currentStatus = QString("移动距离: %1cm, 速度=%2cm/s").arg(distance).arg(speed);
-//    emit statusChanged(currentStatus);
+    quint8 cmd = 0x03;
+
+    serial->sendPacket(
+        0xAB,
+        cmd,
+        static_cast<quint8>(angle),
+        static_cast<quint8>(dir),
+        0x14
+    );
+
+    currentStatus = QString("指令发送: 方向=%1, 角度=%2")
+                        .arg(dir)
+                        .arg(angle);
 }
 
 void CarController::stop()
@@ -95,8 +115,126 @@ bool CarController::isConnected() const
     return serial->isOpen();
 }
 
+// ════════════════════════════════════════════════════════════
+//  底盘视觉对准
+// ════════════════════════════════════════════════════════════
+
+void CarController::carAlignVelocity(int8_t vx, int8_t vy)
+{
+    if (!serial || !serial->isOpen()) return;
+
+    // 协议：0xAB | len | 0x05 | vx(int8) | vy(int8) | checksum
+    // sendPacket 自动填充 len 和 checksum
+    serial->sendPacket(
+        0xAB,
+        static_cast<quint8>(0x05),
+        static_cast<quint8>(vx),
+        static_cast<quint8>(vy)
+    );
+}
+
+void CarController::updateAlignError(int dx, int dy, uint8_t xdir, uint8_t ydir)
+{
+    alignErrorX = dx;
+    alignErrorY = dy;
+    alignDirX   = xdir;
+    alignDirY   = ydir;
+}
+
+void CarController::startChassisTracking()
+{
+    m_alignGeneration++;
+    int myGen = m_alignGeneration;
+
+    // 初始化误差为大值，防止误入死区
+    alignErrorX = 1000;
+    alignErrorY = 1000;
+
+    alignTimer->start(50);  // 20Hz
+
+    // 15秒超时保底，防止圆检测失效导致任务卡死
+    QTimer::singleShot(15000, this, [this, myGen]() {
+        if (myGen != m_alignGeneration) return;
+        if (alignTimer->isActive()) {
+            qDebug() << "[CarCtrl] chassis align timeout, force stop";
+            alignTimer->stop();
+            carAlignVelocity(0, 0);  // 发停止速度
+            emit alignFinished();
+        }
+    });
+}
+
+void CarController::stopChassisTracking()
+{
+    m_alignGeneration++;  // 使当前超时回调失效
+    alignTimer->stop();
+    carAlignVelocity(0, 0);
+}
+
+void CarController::chassisTracking()
+{
+    // 两轴均进入死区 → 停车，通知完成
+    if (std::abs(alignErrorX) < ALIGN_DEAD_ZONE &&
+        std::abs(alignErrorY) < ALIGN_DEAD_ZONE)
+    {
+        qDebug() << "[CarCtrl] chassis align finished, dx=" << alignErrorX
+                 << "dy=" << alignErrorY;
+
+        alignTimer->stop();
+        m_alignGeneration++;  // 使超时回调失效
+
+        carAlignVelocity(0, 0);  // 发零速停车
+        emit alignFinished();
+        return;
+    }
+
+    // ── 比例控制：像素误差 → 速度 ──────────────────────────
+    // dx > 0 圆在右侧 → 底盘右移（vy_chassis 正值）
+    // dy > 0 圆在下方 → 底盘前进（vx_chassis 正值）
+    //
+    // 注意：摄像头朝前时 dx→横向 dy→纵向
+    //       若摄像头朝下或角度不同，可在此交换/取反
+
+    float raw_vy = alignErrorX * ALIGN_KP * (alignDirX ? 1.0f : -1.0f);
+    float raw_vx = alignErrorY * ALIGN_KP * (alignDirY ? 1.0f : -1.0f);
+
+    // 限幅
+    int8_t vx = static_cast<int8_t>(
+        std::max(-ALIGN_MAX_SPEED, std::min(ALIGN_MAX_SPEED, (int)raw_vx)));
+    int8_t vy = static_cast<int8_t>(
+        std::max(-ALIGN_MAX_SPEED, std::min(ALIGN_MAX_SPEED, (int)raw_vy)));
+
+    // 死区内的轴置零，避免抖动
+    if (std::abs(alignErrorX) < ALIGN_DEAD_ZONE) vy = 0;
+    if (std::abs(alignErrorY) < ALIGN_DEAD_ZONE) vx = 0;
+
+    carAlignVelocity(vx, vy);
+
+    qDebug() << "[CarCtrl] align send vx=" << vx << "vy=" << vy
+             << "  errX=" << alignErrorX << "errY=" << alignErrorY;
+}
+
+// ════════════════════════════════════════════════════════════
+//  串口接收（原有逻辑不变）
+// ════════════════════════════════════════════════════════════
+
 void CarController::handleSerialData(const QByteArray &data)
 {
-    qDebug() << "接收到底盘数据:" << data;
-    // 这里可以根据实际协议解析反馈数据
+    qDebug() << "[Car RX raw]:" << data.toHex(' ');
+    recvBuffer.append(data);
+
+    while (recvBuffer.size() >= 4) {
+        if (quint8(recvBuffer[0]) == 0xAB &&
+            quint8(recvBuffer[1]) == 0x04 &&
+            quint8(recvBuffer[2]) == 0x01 &&
+            quint8(recvBuffer[3]) == 0xB0)
+        {
+            qDebug() << "Found sequence: AB 04 01 B0";
+            emit statusChanged("on status");
+            emit taskFinished();
+            recvBuffer.remove(0, 4);
+        } else {
+            recvBuffer.remove(0, 1);
+        }
+    }
 }

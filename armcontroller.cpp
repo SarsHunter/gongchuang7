@@ -1,20 +1,38 @@
 #include "armcontroller.h"
+#include "sharedserial.h"
 
 #include <QDebug>
 #include <QCoreApplication>
+#include <QTimer>
+#include <QMutex>
+#include <QMutexLocker>
+#include <cmath>
+
+QMutex g_armRecvMutex;
+enum class ArmState {
+    Idle,
+    Tracking,
+    Error
+};
 
 ArmController::ArmController(QObject *parent) : QObject(parent)
 {
-    // ttyS4 或 ttyS6
-    serial = new SerialControl("/dev/ttyS6", 115200, this);
+    serial = SharedSerial::instance();
+    connect(serial, &SerialControl::dataReceived,
+            this, &ArmController::handleSerialData);
 
-//    connect(serial, &SerialControl::dataReceived,
-//            this, &CarController::handleSerialData);
-//    connect(serial, &SerialControl::connectionError,
-//            this, [this](const QString &error) {
-//                currentStatus = "连接错误: " + error;
-//                emit statusChanged(currentStatus);
-//            });
+    trackingTimer = new QTimer(this);
+    trackingTimer->setInterval(50); // 20Hz
+    connect(trackingTimer, &QTimer::timeout,
+            this, &ArmController::armTracking);
+
+    m_timerGeneration = 0;
+    m_placeDone = false;
+    m_scanDone = false;
+    errorX = 0;
+    errorY = 0;
+    x_dir = 0;
+    y_dir = 0;
 }
 
 ArmController::~ArmController()
@@ -22,77 +40,249 @@ ArmController::~ArmController()
     stop();
 }
 
-void ArmController::armTrack(int x_error,int y_error,int x,int y)
+// 通用8字节包构建函数
+QByteArray ArmController::build8BytePacket(quint8 header, quint8 cmd,
+                                          quint8 p1, quint8 p2, quint8 p3, quint8 p4)
 {
-    if (!serial->isOpen()) {
-        emit statusChanged("串口未连接");
-        return;
-    }
-
-
-
-    QByteArray cmd;
-
-    // 2. 组包
-    cmd.append(0xAA);                 // 帧头
-    cmd.append(0x08);                 // 包长
-    cmd .append(0xB1);
-    // 误差
-
-    cmd.append(static_cast<char>(x_error));
-    cmd.append(static_cast<char>(y_error));
-
-    cmd.append(static_cast<char>(x));
-    cmd.append(static_cast<char>(y));
-
-    // 3. 计算校验和 (修正了 data -> cmd)
+    QByteArray pkt;
+    pkt.append(header);    // 帧头
+    pkt.append(0x08);      // 固定8字节长度
+    pkt.append(cmd);       // 指令码
+    pkt.append(p1);        // 参数1
+    pkt.append(p2);        // 参数2
+    pkt.append(p3);        // 参数3
+    pkt.append(p4);        // 参数4
+    
+    // 计算校验和（前7字节求和）
     quint8 checksum = 0;
-    for (int i = 0; i < cmd.size(); ++i) {
-        checksum += static_cast<quint8>(cmd[i]);
+    for (int i = 0; i < 7; ++i) {
+        checksum += static_cast<quint8>(pkt[i]);
     }
-    cmd.append(checksum);
-
-    // 4. 发送
-    serial->sendData(cmd);
-
-    // 5. 更新状态 (修正了变量名)
-//    currentStatus = QString("指令发送: 方向=%1, 速度=%2, 距离=%3")
-//                       .arg(direction).arg(velocityInt / 10).arg(distanceInt / 10);
-
+    pkt.append(checksum);  // 校验和
+    
+    return pkt;
 }
 
-
-void ArmController::armStatus()
+void ArmController::placeObject()
 {
-    if (!serial->isOpen()) {
+    if (!serial || !serial->isOpen()) {
         emit statusChanged("串口未连接");
         return;
     }
 
-//    QByteArray cmd;
-//    cmd.append(QString("DIST:%1,%2\n").arg(distance).arg(speed).toUtf8());
-//    serial->sendData(cmd);
+    // 8字节放置指令包
+    QByteArray pkt = build8BytePacket(0xAA, 0xC2, 0x00, 0x00, 0x00, 0x00);
+    serial->sendData(pkt);
+    emit statusChanged("发送放置指令");
+}
 
-//    currentStatus = QString("移动距离: %1cm, 速度=%2cm/s").arg(distance).arg(speed);
-//    emit statusChanged(currentStatus);
+void ArmController::armTrack(int x_error, int y_error, int x, int y)
+{
+    if (!serial || !serial->isOpen()) {
+        emit statusChanged("串口未连接");
+        return;
+    }
+
+    // 8字节追踪指令包
+    QByteArray pkt = build8BytePacket(0xAA, 0xB1,
+                                     static_cast<quint8>(x_error),
+                                     static_cast<quint8>(y_error),
+                                     static_cast<quint8>(x),
+                                     static_cast<quint8>(y));
+    qDebug() << "[TX] ArmTrack:" << pkt.toHex(' ').toUpper()
+             << "x_err=" << x_error << "y_err=" << y_error
+             << "x_dir=" << x << "y_dir=" << y;
+    serial->sendData(pkt);
 }
 
 void ArmController::stop()
 {
-//    if (serial->isOpen()) {
-//        serial->sendData("STOP\n");
-//        currentStatus = "已停止";
-//        emit statusChanged(currentStatus);
-//    }
+    trackingTimer->stop();
+    if (serial && serial->isOpen()) {
+        QByteArray pkt = build8BytePacket(0xAA, 0xFF, 0x00, 0x00, 0x00, 0x00);
+        serial->sendData(pkt);
+        emit statusChanged("机械臂已停止");
+    }
 }
 
-//bool ArmController::isConnected() const
-//{
-//    return serial->isOpen();
-//}
+void ArmController::handleSerialData(const QByteArray &data)
+{
+    QMutexLocker locker(&g_armRecvMutex);
+    qDebug() << "[Arm RX raw]:" << data.toHex(' ');
+    recvBuffer.append(data);
 
-//void ArmController::handleSerialData(const QByteArray &data)
-//{
-//    qDebug() << "接收到底盘数据:" << data;
-//    // 这里可以根据实际协议解析反馈数据
-//}
+    // 检测机械臂完成回复（4字节）
+    while (recvBuffer.size() >= 4) {
+        if (quint8(recvBuffer[0]) == 0xAA &&
+            quint8(recvBuffer[1]) == 0xBB &&
+            quint8(recvBuffer[2]) == 0xCC &&
+            quint8(recvBuffer[3]) == 0xDD) {
+
+            qDebug() << "机械臂动作完成";
+            m_placeDone = true;
+            m_scanDone = true;
+            emit actionFinished();
+            recvBuffer.remove(0, 4);
+        } else {
+            recvBuffer.remove(0, 1); // 滑动窗口
+        }
+    }
+}
+
+void ArmController::armMoveTo(int colorNum, int op)
+{
+    uint8_t param = ((op & 0x0F) << 4) | (colorNum & 0x0F);
+    qDebug() << "armMoveTo: op=" << op << ", color=" << colorNum;
+
+    if (!serial || !serial->isOpen()) {
+        emit statusChanged("串口未连接");
+        return;
+    }
+
+    // 8字节动作指令包
+    QByteArray pkt = build8BytePacket(0xAA, 0xC1, param, 0x00, 0x00, 0x00);
+    serial->sendData(pkt);
+}
+
+void ArmController::updateError(int dx, int dy, uint8_t xdir, uint8_t ydir)
+{
+    errorX = dx;
+    errorY = dy;
+    x_dir = xdir;
+    y_dir = ydir;
+}
+
+void ArmController::startTracking()
+{
+    m_timerGeneration++;
+    int myGen = m_timerGeneration;
+
+    errorX = 1000;
+    errorY = 1000;
+    trackingTimer->start();
+
+    // 15秒超时保护
+    QTimer::singleShot(10000, this, [this, myGen]() {
+        if (myGen != m_timerGeneration || !trackingTimer->isActive()) return;
+        qDebug() << "[ArmCtrl] 追踪超时，强制结束";
+        trackingTimer->stop();
+        emit actionFinished();
+    });
+}
+
+void ArmController::armTracking()
+{
+    const float deadarea = 3.0f;
+    if (std::abs(errorX) < deadarea && std::abs(errorY) < deadarea) {
+        qDebug() << "追踪完成（进入死区）";
+        trackingTimer->stop();
+        emit actionFinished();
+        return;
+    }
+
+    // 发送8字节追踪指令
+    QByteArray pkt = build8BytePacket(0xAA, 0xB1,
+                                     static_cast<quint8>(errorX),
+                                     static_cast<quint8>(errorY),
+                                     x_dir, y_dir);
+    qDebug() << "[TX] ArmTrack:" << pkt.toHex(' ').toUpper()
+             << "x_err=" << errorX << "y_err=" << errorY
+             << "x_dir=" << x_dir << "y_dir=" << y_dir;
+    serial->sendData(pkt);
+}
+
+void ArmController::armPlace()
+{
+    qDebug() << "执行放置动作";
+    trackingTimer->stop();      // 防止 Step 1 的 trackingTimer 继续发 0xB1
+    m_timerGeneration++;
+    int myGen = m_timerGeneration;
+
+    m_placeDone = false;
+    placeObject(); // 发送8字节放置指令
+
+    // 18秒超时保护（下位机夹取约12.8s，留足余量）
+    QTimer::singleShot(18000, this, [this, myGen]() {
+        if (myGen != m_timerGeneration || m_placeDone) return;
+        qDebug() << "[ArmCtrl] 放置超时，强制结束";
+        m_placeDone = true;
+        emit actionFinished();
+    });
+}
+
+void ArmController::armToScanPosition()
+{
+    qDebug() << "[ArmCtrl] 转到扫码位置";
+    m_timerGeneration++;
+    int myGen = m_timerGeneration;
+
+    if (!serial || !serial->isOpen()) {
+        emit statusChanged("串口未连接");
+        QTimer::singleShot(100, this, [this, myGen]() {
+            if (myGen != m_timerGeneration) return;
+            emit actionFinished();
+        });
+        return;
+    }
+
+    m_scanDone = false;
+    // 8字节扫码位置指令
+    QByteArray pkt = build8BytePacket(0xAA, 0xC3, 0x00, 0x00, 0x00, 0x00);
+    serial->sendData(pkt);
+
+    // 18秒超时保护
+    QTimer::singleShot(18000, this, [this, myGen]() {
+        if (myGen != m_timerGeneration || m_scanDone) return;
+        qDebug() << "[ArmCtrl] 扫码位置超时，强制结束";
+        m_scanDone = true;
+        emit actionFinished();
+    });
+}
+
+void ArmController::armScanDown()
+{
+    qDebug() << "[ArmCtrl] 扫码下放";
+    m_timerGeneration++;
+    int myGen = m_timerGeneration;
+
+    if (!serial || !serial->isOpen()) {
+        QTimer::singleShot(100, this, [this, myGen]() {
+            if (myGen != m_timerGeneration) return;
+            emit actionFinished();
+        });
+        return;
+    }
+
+    m_scanDone = false;
+    // 8字节扫码下放指令
+    QByteArray pkt = build8BytePacket(0xAA, 0xC4, 0x00, 0x00, 0x00, 0x00);
+    serial->sendData(pkt);
+
+    // 18秒超时保护
+    QTimer::singleShot(18000, this, [this, myGen]() {
+        if (myGen != m_timerGeneration || m_scanDone) return;
+        qDebug() << "[ArmCtrl] 扫码下放超时，强制结束";
+        m_scanDone = true;
+        emit actionFinished();
+    });
+}
+
+void ArmController::testt(int p)
+{
+    if (!serial || !serial->isOpen()) {
+        emit statusChanged("串口未连接");
+        return;
+    }
+    QByteArray pkt = build8BytePacket(0xAA, 0xC1, static_cast<quint8>(p), 0x00, 0x00, 0x00);
+    serial->sendData(pkt);
+}
+
+void ArmController::test2()
+{
+    if (!serial || !serial->isOpen()) {
+        emit statusChanged("串口未连接");
+        return;
+    }
+    QByteArray pkt = build8BytePacket(0xAA, 0xC2, 0x00, 0x00, 0x00, 0x00);
+    serial->sendData(pkt);
+}

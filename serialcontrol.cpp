@@ -45,9 +45,9 @@ bool SerialControl::isOpen() const
 void SerialControl::handleReadyRead()
 {
     QByteArray data = serial.readAll();
-    while (serial.waitForReadyRead(10)) {
-        data += serial.readAll();
-    }
+//    while (serial.waitForReadyRead(10)) {
+//        data += serial.readAll();
+//    }
     emit dataReceived(data);
 }
 

@@ -1,15 +1,38 @@
-   #include "videothread.h"
+#include "videothread.h"
+#include <QDebug>
 
-videothread::videothread(int camera,QMutex *lock):
-    running(false),cameraID(camera),data_lock(lock)
+
+videothread::videothread(int camera, QMutex *lock)
 {
+    running=false;
+
+    cameraID=camera;
+
+    data_lock=lock;
+
+    red1Threshold ={0,10,43,255,46,255};
+    red2Threshold ={170,180,43,255,46,255};
+
+    greenThreshold ={35,85,43,255,46,255};
+    blueThreshold  ={100,130,43,255,46,255};
+
+
+    currentColorType=1;
+
+    blockDetecting=false;
+    circleDetecting=false;
+    qrDetecting=false;
+
+    scanner.set_config(zbar::ZBAR_NONE,zbar::ZBAR_CFG_ENABLE,1);
 }
 
 videothread::~videothread()
 {
-
+    stop();
 }
-// 新增 stop 函数实现
+
+
+//stop 函数实现
 void videothread::stop()
 {
     // 1. 判断线程是否正在运行
@@ -25,139 +48,437 @@ void videothread::stop()
 }
 
 
-void videothread::run(){
-    running = true;
-    cv::VideoCapture cap(0, cv::CAP_V4L2);
-    if (!cap.isOpened()) {
-        std::cerr << "无法打开摄像头" << std::endl;
-        return ;
+void videothread::run()
+{
+    running=true;
+
+    cv::VideoCapture cap(cameraID,cv::CAP_V4L2);
+
+    if(!cap.isOpened())
+    {
+        qDebug()<<"camera open failed";
+        return;
     }
-    cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
-    cap.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-    cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
-    cap.set(cv::CAP_PROP_FPS, 60);
 
-    cv::Mat tmp_frame;
-    cv::Mat hsv;
+    cap.set(cv::CAP_PROP_FRAME_WIDTH,640);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT,480);
+    cap.set(cv::CAP_PROP_FPS,60);
 
-    while(running){
-        cap >> tmp_frame;
-        if (tmp_frame.empty()){
+    cv::Mat frame;
+
+    while(running)
+    {
+        cap>>frame;
+
+        if(frame.empty())
             break;
-        }
-        cv::Mat blur;
-        cv::GaussianBlur(tmp_frame,blur,cv::Size(7, 7),1.5);
-        // ==================== 1. 颜色转换 (始终执行) ====================
-        cv::cvtColor(blur, hsv, cv::COLOR_RGB2HSV);
 
-        // ==================== 2. 生成 Mask (始终执行，用于预览) ====================
-        cv::Mat mask;
-        {
-            // 加锁读取阈值，防止冲突
-            QMutexLocker locker(data_lock);
-            cv::Scalar lower_green(h_min, s_min, v_min);
-            cv::Scalar upper_green(h_max, s_max, v_max);
-            cv::inRange(hsv, lower_green, upper_green, mask);
-        }
+        cv::Mat processFrame=frame;
 
-        // 发送掩膜给 UI 线程显示 (Qt 会自动复制 Mat 数据，所以这里是安全的)
-        emit previewReady(&mask);
+        cv::Mat mask=createMask(processFrame);
 
-        // ==================== 3. 二维码识别 (始终执行) ====================
-        if (qrdetecing){
-            qrCode(tmp_frame);
-        }
+        if(qrDetecting)
+            detectQRCode(processFrame);
 
-        // ==================== 4. 圆检测 (仅在开启时执行) ====================
-        if (detecting){
-            // 将生成的 mask 传给检测函数，避免重复计算
-            circleDetect(tmp_frame, mask);
-        }
+        if(blockDetecting)
+            detectColorBlock(processFrame,mask);
 
-        // ==================== 5. 发送原始帧 (带绘制结果) ====================
-        // tmp_frame 此时可能被 circleDraw 画上了圆
-        data_lock->lock();
-        frame = tmp_frame;
-        data_lock->unlock();
-        emit frameCaptured(&frame);
+        if(circleDetecting)
+            detectCircle(processFrame,mask);
+
+
+
+        emit frameCaptured(matToQimage(processFrame));
+
+        emit maskCaptured(matToQimage(mask));
     }
 
     cap.release();
-    running = false;
+
+    running=false;
 }
 
-// 修改 circleDetect，接收 mask 作为参数
-void videothread::circleDetect(cv::Mat &frame, const cv::Mat &mask) {
 
-    // 膨胀
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
-//    cv::Mat dilated_mask;
-//    cv::dilate(mask, dilated_mask, kernel);
-    // 闭运算
-    cv::Mat closed_mask;
-    cv::morphologyEx(mask, closed_mask, cv::MORPH_CLOSE, kernel);
-//    cv::morphologyEx(closed_mask, closed_mask, cv::MORPH_CLOSE, kernel);
 
-    // 霍夫圆变换
+
+void videothread::detectCircle(cv::Mat &frame, cv::Mat &mask)
+{
+
+    cv::Point2f focus;
+    if(hasLastCenter)
+        focus = lastCenter;
+    else
+        focus = cv::Point2f(frame.cols/2.0f, frame.rows/2.0f);
+
+    int roiWidth;
+    int roiHeight;
+
+    if(hasLastCenter)
+    {
+        roiWidth = 200;
+        roiHeight = 200;
+    }
+    else
+    {
+        roiWidth = frame.cols;
+        roiHeight = frame.rows;
+    }
+
+//    int roiWidth = 200;
+//    int roiHeight = 200;
+
+    int x = std::max(int(focus.x - roiWidth/2), 0);
+    int y = std::max(int(focus.y - roiHeight/2), 0);
+    int w = std::min(roiWidth, frame.cols - x);
+    int h = std::min(roiHeight, frame.rows - y);
+
+    cv::Rect roiRect(x, y, w, h);
+    cv::Mat roiMask = mask(roiRect);
+
+
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7,7));
+    cv::Mat processed;
+    cv::dilate(roiMask, processed, kernel, cv::Point(-1,-1), 2);
+    cv::morphologyEx(processed, processed, cv::MORPH_CLOSE, kernel, cv::Point(-1,-1), 1);
+
+
+    cv::Mat gray;
+    if(processed.channels() == 3)
+        cv::cvtColor(processed, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = processed.clone();
+
+
+    cv::GaussianBlur(gray, gray, cv::Size(7,7), 2,2);
+
+
     std::vector<cv::Vec3f> circles;
-    cv::HoughCircles(
-        closed_mask,
-        circles,
-        cv::HOUGH_GRADIENT,
-        1.2,
-        closed_mask.rows / 8,
-                100,             // param1: Canny 高阈值
-                50,              // param2: 累加器阈值，从30提高到45，减少误检
-                20,              // minRadius: 最小半径，根据实际情况调整
-                180              // maxRadius: 最大半径
-    );
+    cv::HoughCircles(gray, circles, cv::HOUGH_GRADIENT,
+                     1.2, 100, 50, 30, 20, 180);
 
-    // 筛选并绘制
-    if (!circles.empty()) {
-        int max_idx = 0;
-        float max_r = 0;
-        for(size_t i = 0; i < circles.size(); i++) {
-            if (circles[i][2] > max_r) {
-                max_r = circles[i][2];
-                max_idx = i;
-            }
+    if(circles.empty())
+    {
+//        emit circleError(999,999,0,0);
+        lostFrames++;
+        if(lostFrames >= maxLostFrames)
+            hasLastCenter = false;
+        return;
+    }
+
+
+    lostFrames = 0;
+
+
+    cv::Point2f centerMax;
+    float radiusMax = 0;
+    for(size_t i=0; i<circles.size(); i++)
+    {
+        float radius = circles[i][2];
+        if(radius > radiusMax)
+        {
+            radiusMax = radius;
+            centerMax = cv::Point2f(circles[i][0], circles[i][1]);
         }
+    }
 
-        cv::Vec3i c = circles[max_idx];
-        cv::Point center = cv::Point(c[0], c[1]);
-        int radius = c[2];
+//    if(radiusMax < 20 || radiusMax > 200)
+//        return;
 
-        // 绘制圆心和轮廓
-        cv::circle(frame, center, 3, cv::Scalar(0, 255, 255), -1, cv::LINE_AA);
-        cv::circle(frame, center, radius, cv::Scalar(255, 0, 0), 3, cv::LINE_AA);
+
+    centerMax.x += x;
+    centerMax.y += y;
+
+
+    lastCenter = centerMax;
+    hasLastCenter = true;
+
+
+    cv::circle(frame, centerMax, radiusMax, cv::Scalar(0,255,0), 2);
+    cv::circle(frame, centerMax, 5, cv::Scalar(0,0,255), -1);
+
+
+    cv::Point2f screenCenter(frame.cols/2.0f, frame.rows/2.0f);
+    cv::circle(frame, screenCenter, 5, cv::Scalar(255,0,0), -1);
+
+
+    cv::line(frame, screenCenter, centerMax, cv::Scalar(255,255,0), 2);
+
+
+    int dx = centerMax.x - screenCenter.x;
+    int dy = centerMax.y - screenCenter.y;
+
+    uint8_t x_dir = (dx >= 0) ? 1 : 0;
+    uint8_t y_dir = (dy >= 0) ? 1 : 0;
+
+    emit circleError(dx, dy, x_dir, y_dir);
+//    float distance = cv::norm(centerMax - screenCenter);
+//    char buf[50];
+//    snprintf(buf, sizeof(buf), "Dist: %.1f px", distance);
+//    cv::putText(frame, buf, cv::Point(10,30),
+//                cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,0,255), 2);
+
+
+//    qDebug() << "Max Hough Circle Center:" << centerMax.x
+//             << centerMax.y << " radius:" << radiusMax
+//             << " distance to screen center:" << distance;
+}
+
+
+// circleDetect，接收 mask 作为参数
+//void videothread::detectCircle(cv::Mat &frame, cv::Mat &mask)
+//{
+
+//    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
+//    cv::Mat processed;
+
+
+//    cv::dilate(mask, processed, kernel, cv::Point(-1,-1), 2);
+
+
+//    cv::morphologyEx(processed, processed, cv::MORPH_CLOSE, kernel, cv::Point(-1,-1), 1);
+
+
+//    cv::Mat gray;
+//    if(processed.channels() == 3)
+//        cv::cvtColor(processed, gray, cv::COLOR_BGR2GRAY);
+//    else
+//        gray = processed.clone();
+
+
+//    cv::GaussianBlur(gray, gray, cv::Size(7,7), 2,2);
+
+
+//    std::vector<cv::Vec3f> circles;
+//    cv::HoughCircles(gray, circles, cv::HOUGH_GRADIENT,
+//                     1.2, 100, 50, 30, 20, 180);
+
+//    if(circles.empty())
+//        return;
+
+//    // 5.
+//    cv::Point2f centerMax;
+//    float radiusMax = 0;
+//    for(size_t i=0; i<circles.size(); i++)
+//    {
+//        float radius = circles[i][2];
+//        if(radius > radiusMax)
+//        {
+//            radiusMax = radius;
+//            centerMax = cv::Point2f(circles[i][0], circles[i][1]);
+//        }
+//    }
+
+//    if(radiusMax < 20 || radiusMax > 200){
+//        return;
+//    }
+
+//    cv::circle(frame, centerMax, radiusMax, cv::Scalar(0,255,0), 2);
+//    cv::circle(frame, centerMax, 5, cv::Scalar(0,0,255), -1);
+
+
+//    cv::Point2f screenCenter(frame.cols/2.0f, frame.rows/2.0f);
+//    cv::circle(frame, screenCenter, 5, cv::Scalar(255,0,0), -1);
+
+
+//    cv::line(frame, screenCenter, centerMax, cv::Scalar(255,255,0), 2);
+
+
+////    float distance = cv::norm(centerMax - screenCenter);
+////    char buf[50];
+////    snprintf(buf, sizeof(buf), "Dist: %.1f px", distance);
+////    cv::putText(frame, buf, cv::Point(10,30),
+////                cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,0,255), 2);
+
+
+////    qDebug() << "Max Hough Circle Center:" << centerMax.x
+////             << centerMax.y << " radius:" << radiusMax
+////             << " distance to screen center:" << distance;
+//}
+
+void videothread::detectColorBlock(cv::Mat &frame, cv::Mat &mask)
+{
+    // 1?? ÐÎÌ¬Ñ§´¦Àí£ºÈ¥Ôëµã + Ìî³äÐ¡¿×¶´
+    cv::Mat cleanMask;
+    cv::morphologyEx(mask, cleanMask, cv::MORPH_OPEN, cv::Mat(), cv::Point(-1,-1), 1);
+    cv::morphologyEx(cleanMask, cleanMask, cv::MORPH_CLOSE, cv::Mat(), cv::Point(-1,-1), 1);
+
+    // 2?? ÕÒÂÖÀª
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(cleanMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    if (contours.empty())
+        return;
+
+    double maxArea = 0;
+    std::vector<cv::Point> bestContour;
+
+    // 3?? ÂÖÀªÉ¸Ñ¡
+    for (auto &c : contours)
+    {
+        double area = cv::contourArea(c);
+
+        // 3??1 Ãæ»ý¹ýÂË£ºÌÞ³ýÌ«Ð¡
+        if (area < 2000)  // ¿É¸ù¾ÝÊµ¼ÊÄ¿±êµ÷½ÚãÐÖµ
+            continue;
+
+        // 3??2 ¼ÆËãÍ¹°ü solidity
+        std::vector<cv::Point> hull;
+        cv::convexHull(c, hull);
+        double hullArea = cv::contourArea(hull);
+        double solidity = (hullArea > 0) ? (area / hullArea) : 0;
+        if (solidity < 0.8)
+            continue;
+
+        // 3??3 ¼ÆËã³¤¿í±È
+        cv::Rect bounding = cv::boundingRect(c);
+        double aspect = (double)bounding.width / bounding.height;
+        if (aspect < 0.3 || aspect > 3.0)
+            continue;
+
+        // Ñ¡ÔñÃæ»ý×î´óµÄ·ûºÏÌõ¼þÂÖÀª
+        if (area > maxArea)
+        {
+            maxArea = area;
+            bestContour = c;
+        }
+    }
+
+    if (bestContour.empty())
+        return;
+
+    // 4?? ¼ÆËãÖÊÐÄ
+    cv::Moments m = cv::moments(bestContour);
+    int cx = int(m.m10 / m.m00);
+    int cy = int(m.m01 / m.m00);
+
+    // 5?? »æÖÆÂÖÀªºÍÖÐÐÄµã
+    cv::drawContours(frame, std::vector<std::vector<cv::Point>>{bestContour}, -1, cv::Scalar(0,255,0), 2);
+    cv::circle(frame, cv::Point(cx, cy), 5, cv::Scalar(0,0,255), -1);
+}
+
+void videothread::setHSVThreshold(int hMin,int hMax,
+                                  int sMin,int sMax,
+                                  int vMin,int vMax)
+{
+    QMutexLocker locker(data_lock);
+
+    HSVThreshold *th=nullptr;
+
+    if(currentColorType==1) th=&red1Threshold;
+    if(currentColorType==2) th=&red2Threshold;
+    if(currentColorType==3) th=&greenThreshold;
+    if(currentColorType==4) th=&blueThreshold;
+
+    if(th)
+    {
+        th->h_min=hMin;
+        th->h_max=hMax;
+        th->s_min=sMin;
+        th->s_max=sMax;
+        th->v_min=vMin;
+        th->v_max=vMax;
     }
 }
 
 
-void videothread::setHSVThreshold(int hMin, int hMax, int sMin, int sMax, int vMin, int vMax)
+void videothread::setColorType(int type)
 {
-    data_lock->lock();
-    h_min = hMin;
-    h_max = hMax;
-    s_min = sMin;
-    s_max = sMax;
-    v_min = vMin;
-    v_max = vMax;
-    data_lock->unlock();
+    QMutexLocker locker(data_lock);
+
+    if (type < 1 || type > 4) return;
+
+    currentColorType = type;
+}
+
+HSVThreshold videothread::getThreshold(int type)
+{
+    QMutexLocker locker(data_lock);
+
+    switch(type)
+    {
+    case 1: return red1Threshold;
+    case 2: return red2Threshold;
+    case 3: return greenThreshold;
+    case 4: return blueThreshold;
+    }
+
+    return red1Threshold;
 }
 
 
+cv::Mat videothread::createMask(cv::Mat &frame)
+{
+    cv::Mat hsv;
+    cv::Mat mask;
 
+    cv::cvtColor(frame,hsv,cv::COLOR_BGR2HSV);
 
+    HSVThreshold red1,red2,th;
 
-void videothread::qrCode(cv::Mat &frame) {
-    // 1. 创建 ZBar 扫描器
-    zbar::ImageScanner scanner;
+    {
+        QMutexLocker locker(data_lock);
 
-    // 配置：启用所有类型的码 (二维码、条形码等)
-    scanner.set_config(zbar::ZBAR_NONE, zbar::ZBAR_CFG_ENABLE, 1);
+        red1 = red1Threshold;
+        red2 = red2Threshold;
 
-    // 2. 图像预处理
+        if(currentColorType==3) th = greenThreshold;
+        if(currentColorType==4) th = blueThreshold;
+    }
+
+    // ºìÉ«¼ì²â
+    if(currentColorType==1 || currentColorType==2)
+    {
+        cv::Mat mask1,mask2;
+
+        cv::inRange(hsv,
+                    cv::Scalar(red1.h_min,red1.s_min,red1.v_min),
+                    cv::Scalar(red1.h_max,red1.s_max,red1.v_max),
+                    mask1);
+
+        cv::inRange(hsv,
+                    cv::Scalar(red2.h_min,red2.s_min,red2.v_min),
+                    cv::Scalar(red2.h_max,red2.s_max,red2.v_max),
+                    mask2);
+
+        cv::bitwise_or(mask1,mask2,mask);
+    }
+    else
+    {
+        cv::inRange(hsv,
+                    cv::Scalar(th.h_min,th.s_min,th.v_min),
+                    cv::Scalar(th.h_max,th.s_max,th.v_max),
+                    mask);
+    }
+
+    cv::Mat kernel=cv::getStructuringElement(
+        cv::MORPH_ELLIPSE,
+        cv::Size(5,5));
+
+    cv::morphologyEx(mask,mask,cv::MORPH_OPEN,kernel);
+    cv::morphologyEx(mask,mask,cv::MORPH_CLOSE,kernel);
+
+    return mask;
+}
+QImage videothread::matToQimage(cv::Mat &frame)
+{
+    cv::Mat rgb;
+
+    if(frame.channels()==1)
+        cv::cvtColor(frame, rgb, cv::COLOR_GRAY2RGB);
+    else
+        cv::cvtColor(frame, rgb, cv::COLOR_BGR2RGB);
+
+//    return QImage(rgb.data, rgb.cols, rgb.rows, rgb.step, QImage::Format_RGB888).copy();
+    QImage img(rgb.data,
+               rgb.cols,
+               rgb.rows,
+               rgb.step,
+               QImage::Format_RGB888);
+
+    // 320x240
+    return img.scaled(320, 240, Qt::KeepAspectRatio, Qt::SmoothTransformation).copy();
+}
+void videothread::detectQRCode(cv::Mat &frame)
+{
     // ZBar 需要 Y800 格式 (即灰度图)
     cv::Mat grayFrame;
     // 注意：传入的 frame 此时还是 BGR 格式 (在 run() 里转 RGB 之前)
@@ -191,7 +512,18 @@ void videothread::qrCode(cv::Mat &frame) {
             }
         }
     }
-
-    // 6. 数据清理 (zbar::Image 析构时会自动清理，无需手动释放 grayFrame 数据)
+}
+void videothread::enableBlockDetect(bool flag)
+{
+    blockDetecting = flag;
 }
 
+void videothread::enableCircleDetect(bool flag)
+{
+    circleDetecting = flag;
+}
+
+void videothread::enableQRDetect(bool flag)
+{
+    qrDetecting = flag;
+}

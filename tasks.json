@@ -1,0 +1,254 @@
+[
+  {
+    "type": "CarMove",
+    "params": {
+      "dir": 5,
+      "speed": 30.0,
+      "dist": 25
+    }
+  },
+  {
+    "type": "CarMove",
+    "params": {
+      "dir": 1,
+      "speed": 30.0,
+      "dist": 50.0
+    }
+  },
+
+  {
+    "type": "QRScan",
+    "params": {}
+  },
+
+  {
+    "type": "CarMove",
+    "params": {
+      "dir": 1,
+      "speed": 30.0,
+      "dist": 80.0
+    }
+  },
+
+  {
+    "type": "ArmTrack",
+    "params": {"param": 1,"op": 1 }
+  },
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 1 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 1 }
+},
+{
+    "type": "CarMove",
+    "params": {
+      "dir": 1,
+      "speed": 30.0,
+      "dist": 42.5
+    }
+},
+  {
+    "type": "CarTurn",
+    "params": {
+      "angle": 90,
+      "dir": 1
+    }
+  },
+{
+    "type": "CarMove",
+    "params": {
+      "dir": 1,
+      "speed": 30.0,
+      "dist": 95.0
+    }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 3 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 3 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 3 }
+},
+
+
+  {
+    "type": "CarMove",
+    "params": {
+      "dir": 2,
+      "speed": 30.0,
+      "dist": 95.0
+    }
+  },
+
+  {
+    "type": "CarTurn",
+    "params": {
+      "angle": 90,
+      "dir": 0
+    }
+  },
+
+
+  {
+    "type": "CarMove",
+    "params": {
+      "dir": 2,
+      "speed": 30.0,
+      "dist": 42.5
+    }
+  },
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 1 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 1 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 1 }
+},
+
+ {
+    "type": "CarMove",
+    "params": {
+      "dir": 2,
+      "speed": 30.0,
+      "dist": 22.5
+    }
+  },
+
+  {
+    "type": "CarTurn",
+    "params": {
+      "angle": 179.8,
+      "dir": 1
+    }
+  },
+
+ {
+    "type": "CarMove",
+    "params": {
+      "dir": 1,
+      "speed": 30.0,
+      "dist": 202.5
+    }
+  },
+
+  {
+    "type": "CarTurn",
+    "params": {
+      "angle": 90,
+      "dir": 1
+    }
+  },
+
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 1 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 1 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 3 }
+},
+
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 3 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 3 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 3 }
+},
+
+{
+    "type": "CarMove",
+    "params": {
+      "dir": 2,
+      "speed": 30.0,
+      "dist": 75
+    }
+  },
+
+  {
+    "type": "CarTurn",
+    "params": {
+      "angle": 90,
+      "dir": 0
+    }
+  },
+
+  {
+    "type": "CarMove",
+    "params": {
+      "dir": 2,
+      "speed": 30.0,
+      "dist": 75
+    }
+  },
+
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 4 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 4 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "param": 1, "op": 4 }
+},
+
+ {
+    "type": "CarMove",
+    "params": {
+      "dir": 2,
+      "speed": 30.0,
+      "dist": 75
+    }
+  },
+
+  {
+    "type": "CarTurn",
+    "params": {
+      "angle": 90,
+      "dir": 0
+    }
+  },
+
+  {
+    "type": "CarMove",
+    "params": {
+      "dir": 2,
+      "speed": 30.0,
+      "dist": 195
+    }
+  },
+
+   {
+    "type": "CarMove",
+    "params": {
+      "dir": 8,
+      "speed": 30.0,
+      "dist": 25
+    }
+  }
+]

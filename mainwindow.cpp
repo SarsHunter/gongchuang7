@@ -1,366 +1,530 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
+#include <QDebug>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+
+// ─────────────────────────────────────────────────────────────
+// 构造 / 析构
+// ─────────────────────────────────────────────────────────────
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-        , capturer(nullptr)       // 必须初始化为空指针
-        , data_lock(nullptr)      // 必须初始化为空指针
-        , m_carCtrl(nullptr)      // 必须初始化为空指针
-        , m_armCtrl(nullptr)
-        , isDetecting(false)
-
-    , imageScene(nullptr)
-        , imageView(nullptr)
-
 {
     ui->setupUi(this);
     initUI();
-
 }
 
 MainWindow::~MainWindow()
 {
     if (capturer) {
-          capturer->stop(); // 假设你的线程里有stop方法，如果没有需要加一个
-
-          delete capturer;
-          capturer = nullptr;
-      }
-
-      if (data_lock) {
-          delete data_lock;
-          data_lock = nullptr;
-      }
-
-
+        capturer->stop();
+        delete capturer;
+    }
+    delete data_lock;
     delete ui;
 }
 
-
-
-void MainWindow::updateFrame(cv::Mat *mat){
-    data_lock->lock();
-    currentFrame = *mat;
-    data_lock->unlock();
-
-    cv::cvtColor(currentFrame,currentFrame,cv::COLOR_BGR2RGB);
-
-    QImage frame(
-        currentFrame.data,
-        currentFrame.cols,
-        currentFrame.rows,
-        currentFrame.step,
-        QImage::Format_RGB888);
-    QPixmap image = QPixmap::fromImage(frame);
-
-    imageScene->clear();
-//    imageView->resetMatrix();
-    imageScene->addPixmap(image);
-    imageScene->update();
-    imageView->setSceneRect(image.rect());
-
-}
-
-void MainWindow::updatePreview(cv::Mat *mask)
-{
-    data_lock->lock();
-    currentMask = *mask;
-    data_lock->unlock();
-    // 注意：mask 是单通道 8-bit (CV_8U)
-    // 使用 Format_Grayscale8 格式构建 QImage，无需手动转换
-    QImage preview(
-        currentMask.data,
-        currentMask.cols,
-        currentMask.rows,
-        currentMask.step,
-        QImage::Format_Grayscale8);
-
-    QImage show = preview.scaled(QSize(320,240),Qt::KeepAspectRatio,Qt::SmoothTransformation);
-
-    QPixmap pixmap = QPixmap::fromImage(show);
-
-    // 显示预览图
-    previewScene->clear();
-    previewScene->addPixmap(pixmap);
-    previewScene->update();
-    ui->preView->setSceneRect(pixmap.rect());
-}
-
-
-
-void MainWindow::openCamera()
-{
-    capturer = new videothread(0, data_lock);
-
-    // 初始化HSV阈值
-    capturer->setHSVThreshold(
-        ui->hMinSpin->value(), ui->hMaxSpin->value(),
-        ui->sMinSpin->value(), ui->sMaxSpin->value(),
-        ui->vMinSpin->value(), ui->vMaxSpin->value()
-    );
-    //连接原始画面
-    connect(capturer, &videothread::frameCaptured, this, &MainWindow::updateFrame);
-
-    // 连接掩膜预览流
-    connect(capturer, &videothread::previewReady, this, &MainWindow::updatePreview);
-
-    connect(capturer, &videothread::qrCodeResult, this, [=](const QString &text){
-        static QString last;
-        if(text == last) return;
-        last = text;
-        ui->qrLabel->setText(text);
-    });
-    capturer->start();
-}
-
-
-
-
-
-
-
-void MainWindow::on_detectBtn_clicked()
-{
-    if (!capturer) return; // 确保线程已创建
-
-        isDetecting = !isDetecting; // 切换状态
-
-        // 设置线程里的检测标志
-        capturer->setDetecting(isDetecting);
-
-        // 更新按钮文字，提供直观反馈
-        if (isDetecting) {
-            ui->detectBtn->setText("停止检测");
-            ui->detectBtn->setStyleSheet("background-color: #ffcccc;"); // 可选：变红一点提示正在运行
-        } else {
-            ui->detectBtn->setText("开启检测");
-            ui->detectBtn->setStyleSheet(""); // 恢复默认样式
-        }
-}
-
-
-//测试移动按钮
-// 前进：方向设为 1，速度 30 cm/s，距离 20 cm
-void MainWindow::on_frontBtn_clicked()
-{
-      m_armCtrl->armTrack(0,5,0,1);
-//    m_carCtrl->carMoveDistance(1, 50.0f, 300.0f);
-}
-
-// 后退：方向设为 2，速度 30 cm/s，距离 20 cm
-void MainWindow::on_backBtn_clicked()
-{
-    m_armCtrl->armTrack(0,5,0,0);
-//    m_carCtrl->carMoveDistance(2, 50.0f, 300.0f);
-}
-
-// 左转：方向设为 3，速度 20 cm/s，距离 10 cm
-void MainWindow::on_leftBtn_clicked()
-{
-    m_armCtrl->armTrack(5,0,0,0);
-//    m_carCtrl->carMoveDistance(4, 50.0f, 300.0f);
-}
-
-// 右转：方向设为 4，速度 20 cm/s，距离 10 cm
-void MainWindow::on_rightBtn_clicked()
-{
-       m_armCtrl->armTrack(5,0,1,0);
-//    m_carCtrl->carMoveDistance(3, 50.0f, 300.0f);
-}
-
-
+// ─────────────────────────────────────────────────────────────
+// 初始化
+// ─────────────────────────────────────────────────────────────
 void MainWindow::initUI()
 {
-    // ==================== 1. 初始化场景和互斥锁 ====================
-    imageScene = new QGraphicsScene(this);
-    imageView = ui->graphicsView;
-    imageView->setScene(imageScene);
-
-    // === 预览 Mask 显示 ===
+    // ── 显示场景 ──
+    data_lock    = new QMutex();
+    imageScene   = new QGraphicsScene(this);
     previewScene = new QGraphicsScene(this);
-    ui->preView->setScene(previewScene); // 关联到 UI 上的 preView
-    data_lock = new QMutex();
 
-    // ==================== 2. 初始化 HSV 控件 ====================
-    // 先阻塞信号，防止在设置初始值时触发槽函数导致逻辑混乱或崩溃
-    ui->hMinSpin->blockSignals(true);
-    ui->hMaxSpin->blockSignals(true);
-    ui->sMinSpin->blockSignals(true);
-    ui->sMaxSpin->blockSignals(true);
-    ui->vMinSpin->blockSignals(true);
-    ui->vMaxSpin->blockSignals(true);
+    ui->graphicsView->setScene(imageScene);
+    ui->preView->setScene(previewScene);
 
-    ui->hMinSlider->blockSignals(true);
-    ui->hMaxSlider->blockSignals(true);
-    ui->sMinSlider->blockSignals(true);
-    ui->sMaxSlider->blockSignals(true);
-    ui->vMinSlider->blockSignals(true);
-    ui->vMaxSlider->blockSignals(true);
-
-    // 设置默认值
-    ui->hMinSpin->setValue(35);
-    ui->hMaxSpin->setValue(85);
-    ui->sMinSpin->setValue(43);
-    ui->sMaxSpin->setValue(255);
-    ui->vMinSpin->setValue(46);
-    ui->vMaxSpin->setValue(255);
-
-    ui->hMinSlider->setValue(35);
-    ui->hMaxSlider->setValue(85);
-    ui->sMinSlider->setValue(43);
-    ui->sMaxSlider->setValue(255);
-    ui->vMinSlider->setValue(46);
-    ui->vMaxSlider->setValue(255);
-
-    // 恢复信号连接
-    ui->hMinSpin->blockSignals(false);
-    ui->hMaxSpin->blockSignals(false);
-    ui->sMinSpin->blockSignals(false);
-    ui->sMaxSpin->blockSignals(false);
-    ui->vMinSpin->blockSignals(false);
-    ui->vMaxSpin->blockSignals(false);
-
-    ui->hMinSlider->blockSignals(false);
-    ui->hMaxSlider->blockSignals(false);
-    ui->sMinSlider->blockSignals(false);
-    ui->sMaxSlider->blockSignals(false);
-    ui->vMinSlider->blockSignals(false);
-    ui->vMaxSlider->blockSignals(false);
-
-    // ==================== 3. 按钮连接 ====================
-    connect(ui->opencamBtn, SIGNAL(clicked()), this, SLOT(openCamera()));
-
-    // ==================== 4. 小车控制器初始化 ====================
-    // 注意：如果这里因为串口权限等问题导致 CarController 抛出异常，
-    // 程序也会崩溃。如果 RK3588 上没有串口或权限不足，建议先注释掉这段代码测试。
+    // ── 控制器 ──
     m_carCtrl = new CarController(this);
-
     m_armCtrl = new ArmController(this);
 
     connect(m_carCtrl, &CarController::statusChanged,
-            this, [this](const QString &status) {
-                ui->statusbar->showMessage(status, 0);
-            });
+            this, [this](const QString &s){ ui->statusbar->showMessage(s, 0); });
+
+    // ── 任务管理器 ──
+    m_taskManager = new TaskManager(m_carCtrl, m_armCtrl, this);
+
+    // 摄像头开启按钮
+    connect(ui->opencamBtn, &QPushButton::clicked, this, &MainWindow::openCamera);
+
+    // QRScan 任务等待扫码时：
+    //   1. 如果摄像头未打开则自动打开
+    //   2. 开启 QR 检测
+    connect(m_taskManager, &TaskManager::waitingForQR, this, [this]() {
+        if (!capturer) openCamera();   // 摄像头未打开时自动启动
+        if (capturer)  capturer->enableQRDetect(true);
+    });
+    
+    connect(m_taskManager, &TaskManager::armTrackColorChanged, this, [this](int color) {
+    if (capturer) capturer->setColorType(color);
+});
+
+    // QR 扫码完成后关闭 QR 检测，防止信号重复触发跳过后续任务
+    connect(m_taskManager, &TaskManager::qrScanCompleted, this, [this]() {
+        if (capturer) capturer->enableQRDetect(false);
+    });
+
+    // ArmTrack Step1 开始：确保摄像头已打开，并开启圆形检测
+    // 圆形检测产生的 circleError 信号驱动机械臂视觉伺服
+    connect(m_taskManager, &TaskManager::armTrackingStarted, this, [this]() {
+        if (!capturer) openCamera();
+        if (capturer)  capturer->enableCircleDetect(true);
+    });
+
+    // ArmTrack Step1 完成（进入 Step2 放置）：关闭圆形检测
+    connect(m_taskManager, &TaskManager::armTrackingDone, this, [this]() {
+        if (capturer) capturer->enableCircleDetect(false);
+    });
+
+    // ── 任务列表信号 ──
+    connect(m_taskManager, &TaskManager::queueUpdated,
+            this, &MainWindow::updateTaskTable);
+    connect(m_taskManager, &TaskManager::currentTaskChanged,
+            this, &MainWindow::highlightCurrentTask);
+
+    // ── 运行中禁用手动控制 ──
+    connect(m_taskManager, &TaskManager::taskStarted,
+            this, &MainWindow::disableManualUI);
+    connect(m_taskManager, &TaskManager::taskStopped,
+            this, &MainWindow::enableManualUI);
+    connect(m_taskManager, &TaskManager::allTasksFinished,
+            this, &MainWindow::enableManualUI);
+
+    connect(m_taskManager, &TaskManager::allTasksFinished, this, [this](){
+        ui->statusbar->showMessage("所有任务执行完毕", 5000);
+    });
+
+    // ── 任务表格初始化 ──
+    ui->taskTable->setColumnCount(4);
+    ui->taskTable->setHorizontalHeaderLabels({"No.", "Type", "Params", "Status"});
+    auto *hdr = ui->taskTable->horizontalHeader();
+    hdr->setSectionResizeMode(QHeaderView::Interactive);
+    hdr->setSectionResizeMode(2, QHeaderView::Stretch);
+    ui->taskTable->setColumnWidth(0, 50);
+    ui->taskTable->setColumnWidth(1, 100);
+    ui->taskTable->setColumnWidth(3, 80);
+    ui->taskTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    ui->taskTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+
+    // ── HSV 控件初始值（不触发槽） ──
+    auto setBlocked = [this](bool b) {
+        for (auto *w : {(QWidget*)ui->hMinSpin, (QWidget*)ui->hMaxSpin,
+                        (QWidget*)ui->sMinSpin, (QWidget*)ui->sMaxSpin,
+                        (QWidget*)ui->vMinSpin, (QWidget*)ui->vMaxSpin,
+                        (QWidget*)ui->hMinSlider, (QWidget*)ui->hMaxSlider,
+                        (QWidget*)ui->sMinSlider, (QWidget*)ui->sMaxSlider,
+                        (QWidget*)ui->vMinSlider, (QWidget*)ui->vMaxSlider})
+            w->blockSignals(b);
+    };
+    setBlocked(true);
+    ui->colorComboBox->setCurrentIndex(0);
+    on_colorComboBox_currentIndexChanged(0);
+    setBlocked(false);
 }
 
+// ─────────────────────────────────────────────────────────────
+// JSON 加载
+// ─────────────────────────────────────────────────────────────
+QList<Task> MainWindow::loadTasksFromJson(const QString &filePath)
+{
+    QList<Task> tasks;
 
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning() << "[JSON] Cannot open:" << filePath;
+        ui->statusbar->showMessage("无法打开 JSON 文件: " + filePath, 3000);
+        return tasks;
+    }
+
+    QJsonParseError err;
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &err);
+    file.close();
+
+    if (err.error != QJsonParseError::NoError) {
+        qWarning() << "[JSON] Parse error:" << err.errorString();
+        ui->statusbar->showMessage("JSON 解析错误: " + err.errorString(), 3000);
+        return tasks;
+    }
+    if (!doc.isArray()) {
+        qWarning() << "[JSON] Root must be an array";
+        return tasks;
+    }
+
+    static const QMap<QString, TaskType> typeMap {
+        {"CarMove",  TaskType::CarMove},
+        {"CarTurn",  TaskType::CarTurn},
+        {"ArmTrack", TaskType::ArmTrack},
+        {"QRScan",   TaskType::QRScan},
+    };
+
+    for (const QJsonValue &val : doc.array()) {
+        if (!val.isObject()) continue;
+
+        QJsonObject obj = val.toObject();
+        QString typeStr = obj.value("type").toString();
+
+        if (!typeMap.contains(typeStr)) {
+            qWarning() << "[JSON] Unknown type:" << typeStr;
+            continue;
+        }
+
+        Task task;
+        task.type = typeMap[typeStr];
+
+        if (obj.contains("params") && obj["params"].isObject()) {
+            // 必须先存为局部变量，否则两次 toObject() 产生不同临时对象
+            // 导致 begin()/end() 迭代器失效，进而段错误崩溃
+            QJsonObject paramObj = obj["params"].toObject();
+            for (auto it = paramObj.constBegin(); it != paramObj.constEnd(); ++it) {
+                task.params[it.key()] = it.value().toVariant();
+            }
+        }
+
+        tasks.append(task);
+        qDebug() << "[JSON] Loaded:" << typeStr << task.params;
+    }
+
+    qDebug() << "[JSON] Total tasks:" << tasks.size();
+    return tasks;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 摄像头
+// ─────────────────────────────────────────────────────────────
+void MainWindow::openCamera()
+{
+    if (capturer) return; // 避免重复打开
+
+    capturer = new videothread(0, data_lock);
+
+    connect(this,     &MainWindow::setHSV,
+            capturer, &videothread::setHSVThreshold);
+
+    connect(capturer, &videothread::frameCaptured,
+            this,     &MainWindow::updateFrame);
+
+    connect(capturer, &videothread::maskCaptured,
+            this,     &MainWindow::updatePreview);
+
+    connect(capturer, &videothread::qrCodeResult, this, [this](const QString &text) {
+        if (text == m_qrResult) return;
+        m_qrResult = text;
+        ui->qrLabel->setText(text);
+    });
+
+    connect(capturer, &videothread::qrCodeResult,
+            m_taskManager, &TaskManager::onQRCodeScanned);
+
+    connect(capturer, &videothread::circleError,
+            m_armCtrl, &ArmController::updateError, Qt::QueuedConnection);
+
+    capturer->start();
+
+    // 同步当前颜色选择
+    ui->colorComboBox->setCurrentIndex(0);
+    on_colorComboBox_currentIndexChanged(0);
+}
+
+void MainWindow::updateFrame(QImage frame)
+{
+    imageScene->clear();
+    imageScene->addPixmap(QPixmap::fromImage(frame));
+    imageScene->update();
+    ui->graphicsView->setSceneRect(frame.rect());
+}
+
+void MainWindow::updatePreview(QImage mask)
+{
+    previewScene->clear();
+    previewScene->addPixmap(QPixmap::fromImage(mask));
+    previewScene->update();
+    ui->preView->setSceneRect(mask.rect());
+}
+
+// ─────────────────────────────────────────────────────────────
+// RUN 按钮：选择 JSON 文件 → 加载 → 顺序执行
+// ─────────────────────────────────────────────────────────────
+void MainWindow::on_RunBtn_clicked()
+{
+    if (m_taskManager->isRunning()) {
+        m_taskManager->stopTasks();
+        ui->RunBtn->setText("RUN it");
+        return;
+    }
+
+    QString path = "/home/pi/GC/gongchuang7/tasks.json";
+
+    QList<Task> tasks = loadTasksFromJson(path);
+    if (tasks.isEmpty()) {
+        ui->statusbar->showMessage("tasks.json 为空或不存在: " + path, 3000);
+        return;
+    }
+
+    m_taskManager->clearTasks();
+    m_taskManager->addTasks(tasks);
+    m_taskManager->startTasks();
+
+    ui->RunBtn->setText("STOP");
+}
+
+// ─────────────────────────────────────────────────────────────
+// 仅加载 JSON（不执行）
+// ─────────────────────────────────────────────────────────────
+void MainWindow::on_loadJsonBtn_clicked()
+{
+    QString path = "/home/pi/GC/gongchuang6/tasks.json";
+
+    QList<Task> tasks = loadTasksFromJson(path);
+    if (tasks.isEmpty()) {
+        ui->statusbar->showMessage("tasks.json 为空或不存在: " + path, 3000);
+        return;
+    }
+
+    m_taskManager->clearTasks();
+    m_taskManager->addTasks(tasks);
+
+    ui->statusbar->showMessage(QString("已加载 %1 个任务，按 RUN it 执行").arg(tasks.size()), 3000);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 执行已加载的队列
+// ─────────────────────────────────────────────────────────────
+void MainWindow::on_doBtn_clicked()
+{
+    m_taskManager->startTasks();
+}
+
+// ─────────────────────────────────────────────────────────────
+// 手动添加一个 ArmTrack 任务到队列
+// ─────────────────────────────────────────────────────────────
+void MainWindow::on_addTaskBtn_clicked()
+{
+    m_taskManager->addTask(Task{TaskType::ArmTrack, {}});
+}
+
+// ─────────────────────────────────────────────────────────────
+// 手动移动按钮
+// ─────────────────────────────────────────────────────────────
+void MainWindow::on_frontBtn_clicked()
+{
+    QList<Task> tasks {{ TaskType::CarMove, {{"dir",1},{"speed",30.0f},{"dist",50.0f}} }};
+    m_taskManager->addTasks(tasks);
+    m_taskManager->startTasks();
+}
+
+void MainWindow::on_backBtn_clicked()
+{
+    m_carCtrl->carMoveDistance(2, 30.0f, 50.0f);
+}
+
+void MainWindow::on_leftBtn_clicked()
+{
+    m_carCtrl->carMoveDistance(4, 30.0f, 50.0f);
+}
+
+void MainWindow::on_rightBtn_clicked()
+{
+    m_carCtrl->carMoveDistance(3, 30.0f, 50.0f);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 圆形检测开关
+// ─────────────────────────────────────────────────────────────
+void MainWindow::on_detectBtn_clicked()
+{
+    if (!capturer) return;
+    isDetecting = !isDetecting;
+    capturer->enableCircleDetect(isDetecting);
+    ui->detectBtn->setText(isDetecting ? "停止检测" : "开启检测");
+    ui->detectBtn->setStyleSheet(isDetecting ? "background-color:#ffcccc;" : "");
+}
+
+// ─────────────────────────────────────────────────────────────
+// 视觉追踪开关
+// ─────────────────────────────────────────────────────────────
+void MainWindow::on_trackBtn_clicked()
+{
+    isTracking = !isTracking;
+    ui->trackBtn->setText(isTracking ? "停止追踪" : "开启追踪");
+    ui->trackBtn->setStyleSheet(isTracking ? "background-color:#ccffcc; color:black;" : "");
+    ui->statusbar->showMessage(isTracking ? "视觉追踪已开启" : "视觉追踪已停止", 2000);
+}
+
+// ─────────────────────────────────────────────────────────────
+// 测试按钮
+// ─────────────────────────────────────────────────────────────
+void MainWindow::on_testBtn_clicked()  { m_armCtrl->testt(1); }
+void MainWindow::on_testBtn2_clicked() { m_armCtrl->test2(); }
+
+// ─────────────────────────────────────────────────────────────
+// UI 锁定 / 解锁
+// ─────────────────────────────────────────────────────────────
+void MainWindow::disableManualUI()
+{
+    ui->frontBtn->setEnabled(false);
+    ui->backBtn->setEnabled(false);
+    ui->leftBtn->setEnabled(false);
+    ui->rightBtn->setEnabled(false);
+    ui->trackBtn->setEnabled(false);
+}
+
+void MainWindow::enableManualUI()
+{
+    ui->frontBtn->setEnabled(true);
+    ui->backBtn->setEnabled(true);
+    ui->leftBtn->setEnabled(true);
+    ui->rightBtn->setEnabled(true);
+    ui->trackBtn->setEnabled(true);
+    ui->RunBtn->setText("RUN it");
+}
+
+// ─────────────────────────────────────────────────────────────
+// 任务表格更新
+// ─────────────────────────────────────────────────────────────
+void MainWindow::updateTaskTable(const QList<Task> &queue)
+{
+    static const QMap<TaskType, QString> typeNames {
+        {TaskType::CarMove,  "CarMove"},
+        {TaskType::CarTurn,  "CarTurn"},
+        {TaskType::ArmTrack, "ArmTrack"},
+        {TaskType::QRScan,   "QRScan"},
+    };
+
+    ui->taskTable->setRowCount(queue.size());
+
+    for (int i = 0; i < queue.size(); ++i) {
+        const Task &t = queue[i];
+
+        ui->taskTable->setItem(i, 0, new QTableWidgetItem(QString::number(i + 1)));
+        ui->taskTable->setItem(i, 1, new QTableWidgetItem(typeNames.value(t.type, "?")));
+
+        QString params;
+        for (auto it = t.params.cbegin(); it != t.params.cend(); ++it)
+            params += it.key() + "=" + it.value().toString() + " ";
+        ui->taskTable->setItem(i, 2, new QTableWidgetItem(params.trimmed()));
+
+        if (!ui->taskTable->item(i, 3))
+            ui->taskTable->setItem(i, 3, new QTableWidgetItem("Wait"));
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 高亮当前任务行
+// ─────────────────────────────────────────────────────────────
+void MainWindow::highlightCurrentTask(int index)
+{
+    const int rows = ui->taskTable->rowCount();
+    if (rows == 0) return;
+
+    for (int i = 0; i < rows; ++i) {
+        QTableWidgetItem *item = ui->taskTable->item(i, 3);
+        if (!item) {
+            item = new QTableWidgetItem();
+            ui->taskTable->setItem(i, 3, item);
+        }
+
+        if (i < index) {
+            item->setText("Done");
+            item->setBackground(QColor(144, 238, 144)); // 绿
+        } else if (i == index) {
+            item->setText("Doing");
+            item->setBackground(QColor(255, 255, 0));   // 黄
+            QFont f = item->font(); f.setBold(true); item->setFont(f);
+        } else {
+            item->setText("Wait");
+            item->setBackground(Qt::white);
+            QFont f = item->font(); f.setBold(false); item->setFont(f);
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// HSV 阈值同步
+// ─────────────────────────────────────────────────────────────
 void MainWindow::updateHSVThreshold()
 {
     if (!capturer) return;
 
-    int hMin = ui->hMinSpin->value();
-    int hMax = ui->hMaxSpin->value();
-    int sMin = ui->sMinSpin->value();
-    int sMax = ui->sMaxSpin->value();
-    int vMin = ui->vMinSpin->value();
-    int vMax = ui->vMaxSpin->value();
+    int hMin = ui->hMinSpin->value(), hMax = ui->hMaxSpin->value();
+    int sMin = ui->sMinSpin->value(), sMax = ui->sMaxSpin->value();
+    int vMin = ui->vMinSpin->value(), vMax = ui->vMaxSpin->value();
 
-    // 确保最小值不大于最大值
     if (hMin > hMax) hMax = hMin;
     if (sMin > sMax) sMax = sMin;
     if (vMin > vMax) vMax = vMin;
 
-    // 更新线程中的HSV阈值
-    capturer->setHSVThreshold(hMin, hMax, sMin, sMax, vMin, vMax);
-
-    // 可选：在状态栏显示当前阈值
-    ui->statusbar->showMessage(QString("HSV: H[%1-%2] S[%3-%4] V[%5-%6]")
-                                .arg(hMin).arg(hMax)
-                                .arg(sMin).arg(sMax)
-                                .arg(vMin).arg(vMax), 2000);
+    emit setHSV(hMin, hMax, sMin, sMax, vMin, vMax);
 }
 
-
-
-// ==================== HSV 滑条回调函数 ====================
-// H 通道
-void MainWindow::on_hMaxSlider_valueChanged(int value)
+void MainWindow::on_colorComboBox_currentIndexChanged(int index)
 {
-    ui->hMaxSpin->setValue(value);
-    updateHSVThreshold();
+    if (!capturer) return;
+
+    int type = index + 1;
+    capturer->setColorType(type);
+    HSVThreshold th = capturer->getThreshold(type);
+
+    // 同步更新所有控件（阻断信号防止循环触发）
+    for (QWidget *w : {(QWidget*)ui->hMinSpin, (QWidget*)ui->hMaxSpin,
+                       (QWidget*)ui->sMinSpin, (QWidget*)ui->sMaxSpin,
+                       (QWidget*)ui->vMinSpin, (QWidget*)ui->vMaxSpin,
+                       (QWidget*)ui->hMinSlider, (QWidget*)ui->hMaxSlider,
+                       (QWidget*)ui->sMinSlider, (QWidget*)ui->sMaxSlider,
+                       (QWidget*)ui->vMinSlider, (QWidget*)ui->vMaxSlider})
+        w->blockSignals(true);
+
+    ui->hMinSpin->setValue(th.h_min);  ui->hMinSlider->setValue(th.h_min);
+    ui->hMaxSpin->setValue(th.h_max);  ui->hMaxSlider->setValue(th.h_max);
+    ui->sMinSpin->setValue(th.s_min);  ui->sMinSlider->setValue(th.s_min);
+    ui->sMaxSpin->setValue(th.s_max);  ui->sMaxSlider->setValue(th.s_max);
+    ui->vMinSpin->setValue(th.v_min);  ui->vMinSlider->setValue(th.v_min);
+    ui->vMaxSpin->setValue(th.v_max);  ui->vMaxSlider->setValue(th.v_max);
+
+    for (QWidget *w : {(QWidget*)ui->hMinSpin, (QWidget*)ui->hMaxSpin,
+                       (QWidget*)ui->sMinSpin, (QWidget*)ui->sMaxSpin,
+                       (QWidget*)ui->vMinSpin, (QWidget*)ui->vMaxSpin,
+                       (QWidget*)ui->hMinSlider, (QWidget*)ui->hMaxSlider,
+                       (QWidget*)ui->sMinSlider, (QWidget*)ui->sMaxSlider,
+                       (QWidget*)ui->vMinSlider, (QWidget*)ui->vMaxSlider})
+        w->blockSignals(false);
 }
 
-void MainWindow::on_hMinSlider_valueChanged(int value)
+// Slider → SpinBox → 更新
+void MainWindow::on_hMaxSlider_valueChanged(int v) { ui->hMaxSpin->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_hMinSlider_valueChanged(int v) { ui->hMinSpin->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_sMaxSlider_valueChanged(int v) { ui->sMaxSpin->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_sMinSlider_valueChanged(int v) { ui->sMinSpin->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_vMaxSlider_valueChanged(int v) { ui->vMaxSpin->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_vMinSlider_valueChanged(int v) { ui->vMinSpin->setValue(v); updateHSVThreshold(); }
+
+// SpinBox → Slider → 更新
+void MainWindow::on_hMaxSpin_valueChanged(int v) { ui->hMaxSlider->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_hMinSpin_valueChanged(int v) { ui->hMinSlider->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_sMaxSpin_valueChanged(int v) { ui->sMaxSlider->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_sMinSpin_valueChanged(int v) { ui->sMinSlider->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_vMaxSpin_valueChanged(int v) { ui->vMaxSlider->setValue(v); updateHSVThreshold(); }
+void MainWindow::on_vMinSpin_valueChanged(int v) { ui->vMinSlider->setValue(v); updateHSVThreshold(); }
+
+// ─────────────────────────────────────────────────────────────
+// QR 解析工具（供外部调用）
+// ─────────────────────────────────────────────────────────────
+QList<int> MainWindow::parseQRCode(const QString &text, int side)
 {
-    ui->hMinSpin->setValue(value);
-    updateHSVThreshold();
+    QList<int> result;
+    QStringList parts = text.split('+');
+    if (parts.size() < 2) return result;
+
+    const QString &target = (side == 0) ? parts[0] : parts[1];
+    for (const QChar &c : target) {
+        int n = c.digitValue();
+        if (n >= 1 && n <= 3) result.append(n);
+    }
+    return result;
 }
-
-// S 通道
-void MainWindow::on_sMaxSlider_valueChanged(int value)
-{
-    ui->sMaxSpin->setValue(value);
-    updateHSVThreshold();
-}
-
-void MainWindow::on_sMinSlider_valueChanged(int value)
-{
-    ui->sMinSpin->setValue(value);
-    updateHSVThreshold();
-}
-
-// V 通道
-void MainWindow::on_vMaxSlider_valueChanged(int value)
-{
-    ui->vMaxSpin->setValue(value);
-    updateHSVThreshold();
-}
-
-void MainWindow::on_vMinSlider_valueChanged(int value)
-{
-    ui->vMinSpin->setValue(value);
-    updateHSVThreshold();
-}
-
-// ==================== HSV SpinBox 回调函数 ====================
-// 注意：如果 SpinBox 没有报错，可以不写下面这些，但为了双向同步最好加上
-
-void MainWindow::on_hMaxSpin_valueChanged(int value)
-{
-    ui->hMaxSlider->setValue(value);
-    updateHSVThreshold();
-}
-
-void MainWindow::on_hMinSpin_valueChanged(int value)
-{
-    ui->hMinSlider->setValue(value);
-    updateHSVThreshold();
-}
-
-void MainWindow::on_sMaxSpin_valueChanged(int value)
-{
-    ui->sMaxSlider->setValue(value);
-    updateHSVThreshold();
-}
-
-void MainWindow::on_sMinSpin_valueChanged(int value)
-{
-    ui->sMinSlider->setValue(value);
-    updateHSVThreshold();
-}
-
-void MainWindow::on_vMaxSpin_valueChanged(int value)
-{
-    ui->vMaxSlider->setValue(value);
-    updateHSVThreshold();
-}
-
-void MainWindow::on_vMinSpin_valueChanged(int value)
-{
-    ui->vMinSlider->setValue(value);
-    updateHSVThreshold();
-}
-
-
-
-
-
-
-
-
-
-
-
-
-

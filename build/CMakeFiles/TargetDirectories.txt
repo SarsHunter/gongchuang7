@@ -1,8 +1,9 @@
-/home/sy/Desktop/gongchuang/gongchaungv1/build/CMakeFiles/gongchaungv1.dir
-/home/sy/Desktop/gongchuang/gongchaungv1/build/CMakeFiles/edit_cache.dir
-/home/sy/Desktop/gongchuang/gongchaungv1/build/CMakeFiles/rebuild_cache.dir
-/home/sy/Desktop/gongchuang/gongchaungv1/build/CMakeFiles/list_install_components.dir
-/home/sy/Desktop/gongchuang/gongchaungv1/build/CMakeFiles/install.dir
-/home/sy/Desktop/gongchuang/gongchaungv1/build/CMakeFiles/install/local.dir
-/home/sy/Desktop/gongchuang/gongchaungv1/build/CMakeFiles/install/strip.dir
-/home/sy/Desktop/gongchuang/gongchaungv1/build/CMakeFiles/gongchaungv1_autogen.dir
+/home/pi/GC/gongchuang7/build/CMakeFiles/gongchaungv1.dir
+/home/pi/GC/gongchuang7/build/CMakeFiles/edit_cache.dir
+/home/pi/GC/gongchuang7/build/CMakeFiles/rebuild_cache.dir
+/home/pi/GC/gongchuang7/build/CMakeFiles/list_install_components.dir
+/home/pi/GC/gongchuang7/build/CMakeFiles/install.dir
+/home/pi/GC/gongchuang7/build/CMakeFiles/install/local.dir
+/home/pi/GC/gongchuang7/build/CMakeFiles/install/strip.dir
+/home/pi/GC/gongchuang7/build/CMakeFiles/gongchaungv1_autogen_timestamp_deps.dir
+/home/pi/GC/gongchuang7/build/CMakeFiles/gongchaungv1_autogen.dir
