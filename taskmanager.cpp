@@ -60,6 +60,8 @@ void TaskManager::startTasks()
     m_currentIndex = 0;
     m_armStep      = 0;        // ← 加这行
     m_qrProcessed  = false;    // ← 加这行
+    m_frontIdx     = 0;        // 重置前半段索引
+    m_backIdx      = 0;        // 重置后半段索引
 
     emit taskStarted();
     executeCurrentTask();
@@ -73,6 +75,8 @@ void TaskManager::stopTasks()
     m_armStep      = 0;        // ← 加这行
     m_qrProcessed  = false;    // ← 加这行
     m_currentIndex = -1;       // ← 加这行
+    m_frontIdx     = 0;        // 重置前半段索引
+    m_backIdx      = 0;        // 重置后半段索引
     m_taskQueue.clear();
 
     emit taskStopped();
@@ -121,6 +125,24 @@ void TaskManager::executeCurrentTask()
     // ── 机械臂追踪+放置（多步骤） ──
     case TaskType::ArmTrack:
         m_armStep = 0;
+
+        // 检测是否开始了一个新的同 side ArmTrack 组
+        // （前一个任务不是同 side 的 ArmTrack → 重置索引，从头取颜色）
+        if (m_currentIndex > 0) {
+            const Task &prev = m_taskQueue[m_currentIndex - 1];
+            int currSide = m_currentTask.params.value("side", 0).toInt();
+            if (prev.type != TaskType::ArmTrack ||
+                prev.params.value("side", 0).toInt() != currSide) {
+                if (currSide == 0) m_frontIdx = 0;
+                else               m_backIdx  = 0;
+            }
+        } else {
+            // 队列第一个任务就是 ArmTrack，直接重置
+            int currSide = m_currentTask.params.value("side", 0).toInt();
+            if (currSide == 0) m_frontIdx = 0;
+            else               m_backIdx  = 0;
+        }
+
         executeArmStep();
         break;
 
@@ -147,22 +169,36 @@ void TaskManager::executeArmStep()
 {
     if (!m_running) return;
 
-    const int color = m_currentTask.params.value("param", 1).toInt();
-    const int op    = m_currentTask.params.value("op",    1).toInt();
+    const int op = m_currentTask.params.value("op", 1).toInt();
 
     switch (m_armStep) {
-    case 0:
+    case 0: {
+        // Step 0: 只在这里取一次颜色，并存入 params 供后续 Step 使用
+        const int side = m_currentTask.params.value("side", 0).toInt();
+        int color = 1; // 默认值
+        if (side == 0) {
+            if (m_frontIdx < m_colorOrder.size())
+                color = m_colorOrder[m_frontIdx++];
+        } else {
+            if (m_backIdx < m_colorOrderBack.size())
+                color = m_colorOrderBack[m_backIdx++];
+        }
+        m_currentTask.params["param"] = color;   // 存起来，Step1/2 复用
+
         qDebug() << "[ArmStep 0] armMoveTo color=" << color << "op=" << op;
         m_arm->armMoveTo(color, op);
         break;
+    }
 
-    case 1:
-        qDebug() << "[ArmStep 1] startTracking";
+    case 1: {
+        int color = m_currentTask.params.value("param", 1).toInt();
+        qDebug() << "[ArmStep 1] startTracking color=" << color;
         // 通知 MainWindow 开启圆形检测，摄像头才能给机械臂发误差数据
-        emit armTrackColorChanged(color); 
+        emit armTrackColorChanged(color);
         emit armTrackingStarted();
         m_arm->startTracking();
         break;
+    }
 
     case 2:
         qDebug() << "[ArmStep 2] armPlace";
@@ -252,29 +288,37 @@ void TaskManager::onQRCodeScanned(const QString &text)
     emit qrScanCompleted();
 
    
-    // 解析二维码：格式 "123+456"，取 '+' 前半段作为颜色序列
+    // 解析二维码：格式 "123+456"
     QStringList parts = text.split('+');
-    QString target = parts.isEmpty() ? text : parts[0];
+    QString front = parts.isEmpty() ? text : parts[0];
 
+    // 前半段
     m_colorOrder.clear();
-    for (const QChar &c : target) {
+    for (const QChar &c : front) {
         int n = c.digitValue();
         if (n >= 1 && n <= 3)
             m_colorOrder.append(n);
     }
 
-    qDebug() << "[TaskManager] QR scanned, colorOrder:" << m_colorOrder;
-
-    // 把后续 ArmTrack 任务的 param 替换成实际颜色
-    int colorIdx = 0;
-    for (int i = m_currentIndex + 1; i < m_taskQueue.size(); ++i) {
-        if (m_taskQueue[i].type == TaskType::ArmTrack
-            && colorIdx < m_colorOrder.size())
-        {
-            m_taskQueue[i].params["param"] = m_colorOrder[colorIdx++];
+    // 后半段
+    m_colorOrderBack.clear();
+    if (parts.size() >= 2) {
+        QString back = parts[1];
+        for (const QChar &c : back) {
+            int n = c.digitValue();
+            if (n >= 1 && n <= 3)
+                m_colorOrderBack.append(n);
         }
     }
 
+    qDebug() << "[TaskManager] QR scanned, front:" << m_colorOrder
+             << "back:" << m_colorOrderBack;
+
+    // 每次新扫码后重置索引，让后续 ArmTrack 从新码的头开始取
+    m_frontIdx = 0;
+    m_backIdx  = 0;
+
+    // 不再预先填充任务队列，改为执行 ArmTrack 时根据 side 参数动态选择
     emit queueUpdated(m_taskQueue); // 刷新任务列表显示
 
     m_arm->armScanDown();  // 发0xC4，等臂降下后再推进

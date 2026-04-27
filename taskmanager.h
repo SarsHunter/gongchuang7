@@ -82,9 +82,12 @@ private:
     int  m_currentIndex = -1;
     int  m_armStep      = 0;     // ArmTrack 内部步骤（0:moveTo 1:tracking 2:place）
 
-    QList<int> m_colorOrder;     // QRScan 解析出的颜色顺序
-    bool m_qrProcessed = false;  // 防止 qrCodeResult 多次触发
-    int  m_qrStep      = 0;      // QRScan 子步骤：0=arm准备中 1=等待扫码结果
+    QList<int> m_colorOrder;      // QRScan 解析出的前半段颜色顺序
+    QList<int> m_colorOrderBack;  // QRScan 解析出的后半段颜色顺序
+    int  m_frontIdx    = 0;       // 前半段当前使用索引
+    int  m_backIdx     = 0;       // 后半段当前使用索引
+    bool m_qrProcessed = false;   // 防止 qrCodeResult 多次触发
+    int  m_qrStep      = 0;       // QRScan 子步骤：0=arm准备中 1=等待扫码结果
 };
 
 #endif // TASKMANAGER_H

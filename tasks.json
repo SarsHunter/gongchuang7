@@ -1,4 +1,38 @@
 [
+
+{
+    "type": "QRScan",
+    "params": {}
+},
+
+
+{
+  "type": "ArmTrack",
+  "params": {  "op": 1 ,"side": 0}
+},
+{
+  "type": "ArmTrack",
+  "params": {  "op": 1 ,"side": 0 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "op": 1 ,"side": 0 }
+},
+
+{
+  "type": "ArmTrack",
+  "params": {  "op": 1 ,"side": 1}
+},
+{
+  "type": "ArmTrack",
+  "params": {  "op": 1 ,"side": 1 }
+},
+{
+  "type": "ArmTrack",
+  "params": { "op": 1 ,"side": 1 }
+},
+
+
   {
     "type": "CarMove",
     "params": {
@@ -30,18 +64,19 @@
     }
   },
 
-  {
-    "type": "ArmTrack",
-    "params": {"param": 1,"op": 1 }
-  },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 1 }
+  "params": {  "op": 1 ,"side": 0}
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 1 }
+  "params": {  "op": 1 ,"side": 0 }
 },
+{
+  "type": "ArmTrack",
+  "params": { "op": 1 ,"side": 0 }
+},
+
 {
     "type": "CarMove",
     "params": {
@@ -67,15 +102,15 @@
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 3 }
+  "params": {  "op": 3 ,"side": 0}
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 3 }
+  "params": {  "op": 3 ,"side": 0 }
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 3 }
+  "params": { "op": 3 ,"side": 0 }
 },
 
 
@@ -107,15 +142,15 @@
   },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 1 }
+  "params": {  "op": 1 ,"side": 1}
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 1 }
+  "params": {  "op": 1 ,"side": 1 }
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 1 }
+  "params": { "op": 1 ,"side": 1 }
 },
 
  {
@@ -154,29 +189,31 @@
 
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 1 }
+  "params": {  "op": 3 ,"side": 1}
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 1 }
+  "params": {  "op": 3 ,"side": 1 }
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 3 }
+  "params": { "op": 3 ,"side": 1 }
 },
+
 
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 3 }
+  "params": {  "op": 1 ,"side": 1}
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 3 }
+  "params": {  "op": 1 ,"side": 1 }
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 3 }
+  "params": { "op": 1 ,"side": 1 }
 },
+
 
 {
     "type": "CarMove",
@@ -206,15 +243,15 @@
 
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 4 }
+  "params": {  "op": 4 ,"side": 1}
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 4 }
+  "params": {  "op": 4 ,"side": 1 }
 },
 {
   "type": "ArmTrack",
-  "params": { "param": 1, "op": 4 }
+  "params": { "op": 4 ,"side": 1 }
 },
 
  {
