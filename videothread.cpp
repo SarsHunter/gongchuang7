@@ -157,10 +157,12 @@ void videothread::detectCircle(cv::Mat &frame, cv::Mat &mask)
 
     if(circles.empty())
     {
-//        emit circleError(999,999,0,0);
         lostFrames++;
         if(lostFrames >= maxLostFrames)
             hasLastCenter = false;
+        // 连续丢帧超过30帧 → 通知上位机目标丢失，停车
+        if(lostFrames >= 30)
+            emit circleError(0, 0, 2, 2);
         return;
     }
 
@@ -496,6 +498,10 @@ void videothread::enableBlockDetect(bool flag)
 void videothread::enableCircleDetect(bool flag)
 {
     circleDetecting = flag;
+    if (flag) {
+        lostFrames = 0;        // 开启检测时重置丢帧计数
+        hasLastCenter = false; // 重新进入全图搜索模式
+    }
 }
 
 void videothread::enableQRDetect(bool flag)

@@ -78,6 +78,8 @@ private:
     uint8_t  alignDirX        = 0;  // 0=左/负  1=右/正
     uint8_t  alignDirY        = 0;  // 0=后/负  1=前/正
     int      m_alignGeneration = 0; // 每次新对准动作 +1，使旧超时回调失效
+    int      m_alignUpdateCnt  = 0;  // 视觉误差更新计数，满3帧才开始对准
+    bool     m_alignTargetLost = false; // 连续丢帧，目标丢失标志
 
     // 死区阈值（像素），小于此值认为已对准
     static constexpr int ALIGN_DEAD_ZONE = 15;

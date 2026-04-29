@@ -135,10 +135,17 @@ void CarController::carAlignVelocity(int8_t vx, int8_t vy)
 
 void CarController::updateAlignError(int dx, int dy, uint8_t xdir, uint8_t ydir)
 {
+    // 特殊码：摄像头连续丢帧超过阈值，目标已丢失
+    if (xdir == 2 && ydir == 2) {
+        m_alignTargetLost = true;
+        return;
+    }
+    m_alignTargetLost = false;  // 收到正常误差，目标找回
     alignErrorX = dx;
     alignErrorY = dy;
     alignDirX   = xdir;
     alignDirY   = ydir;
+    m_alignUpdateCnt++;
 }
 
 void CarController::startChassisTracking()
@@ -146,9 +153,11 @@ void CarController::startChassisTracking()
     m_alignGeneration++;
     int myGen = m_alignGeneration;
 
-    // 初始化误差为0，等待摄像头第一次更新
+    // 初始化误差为0，重置更新计数和目标丢失标志
     alignErrorX = 0;
     alignErrorY = 0;
+    m_alignUpdateCnt = 0;
+    m_alignTargetLost = false;
 
     alignTimer->start(50);  // 20Hz
 
@@ -173,6 +182,19 @@ void CarController::stopChassisTracking()
 
 void CarController::chassisTracking()
 {
+    // 前3帧不执行，等摄像头稳定更新后再判断
+    if (m_alignUpdateCnt < 3) return;
+
+    // 目标连续丢失超过阈值 → 停车并结束任务
+    if (m_alignTargetLost) {
+        qDebug() << "[CarCtrl] target lost for too long, stop and finish";
+        alignTimer->stop();
+        m_alignGeneration++;  // 使超时回调失效
+        carAlignVelocity(0, 0);
+        emit alignFinished();
+        return;
+    }
+
     // 两轴均进入死区 → 停车，通知完成
     if (std::abs(alignErrorX) < ALIGN_DEAD_ZONE &&
         std::abs(alignErrorY) < ALIGN_DEAD_ZONE)
@@ -195,8 +217,8 @@ void CarController::chassisTracking()
     // 注意：摄像头朝前时 dx→横向 dy→纵向
     //       若摄像头朝下或角度不同，可在此交换/取反
 
-    float raw_vy = alignErrorX * ALIGN_KP * (alignDirX ? 1.0f : -1.0f);
-    float raw_vx = alignErrorY * ALIGN_KP * (alignDirY ? 1.0f : -1.0f);
+    float raw_vy = -alignErrorX * ALIGN_KP;
+    float raw_vx = -alignErrorY * ALIGN_KP;
 
     // 限幅
     int8_t vx = static_cast<int8_t>(
