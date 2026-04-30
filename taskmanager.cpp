@@ -176,6 +176,7 @@ void TaskManager::executeCurrentTask()
     // ── 颜色分拣检测 ──
     case TaskType::ColorSort:
         m_colorDetected = false;
+        m_colorSortArmSent = false;  // 重置：还没发0xC5，不接受旧ArmDone
         emit colorSortStarted();
         break;
     }
@@ -259,6 +260,10 @@ void TaskManager::onArmSubStepFinished()
 
     // ColorSort 任务：收到下位机 ArmDone → 任务完成
     if (currentType == TaskType::ColorSort) {
+        if (!m_colorSortArmSent) {
+            qDebug() << "[ColorSort] ignore stale actionFinished (not sent yet)";
+            return;  // 忽略旧的/延迟到达的 ArmDone
+        }
         qDebug() << "[ColorSort] arm action finished";
         emit taskFinished();
         advanceToNextTask();
@@ -296,6 +301,7 @@ void TaskManager::onColorBlockDetected(int color)
     qDebug() << "[ColorSort] detected color=" << color << ", sending 0xC5 to STM32";
 
     emit colorSortDone();
+    m_colorSortArmSent = true;   // 标记：已发送0xC5，现在可以收ArmDone了
     m_arm->armColorSort(color);
 }
 

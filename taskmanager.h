@@ -96,6 +96,7 @@ private:
     bool m_qrProcessed = false;   // 防止 qrCodeResult 多次触发
     int  m_qrStep      = 0;       // QRScan 子步骤：0=arm准备中 1=等待扫码结果
     bool m_colorDetected = false; // ColorSort 防重：只处理第一次检测
+    bool m_colorSortArmSent = false; // ColorSort：只有发了0xC5后才接受ArmDone
 };
 
 #endif // TASKMANAGER_H
