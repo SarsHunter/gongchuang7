@@ -39,6 +39,7 @@ public:
     void enableBlockDetect(bool flag);
     void enableCircleDetect(bool flag);
     void enableQRDetect(bool flag);
+    void enableColorSort(bool flag);
 
 
 
@@ -50,6 +51,7 @@ signals:
     void qrCodeResult(QString);
 
     void circleError(int dx, int dy, uint8_t x_dir, uint8_t y_dir);
+    void colorBlockDetected(int color);  // 1=红, 2=绿, 3=蓝
 
 protected:
     void run() override;
@@ -59,6 +61,7 @@ private:
     cv::Mat createMask(cv::Mat &frame);
 
     void detectColorBlock(cv::Mat &frame, cv::Mat &mask);
+    void detectColorSorting(cv::Mat &frame);
 
     void detectCircle(cv::Mat &frame, cv::Mat &mask);
 
@@ -88,6 +91,8 @@ private:
     bool blockDetecting;
     bool circleDetecting;
     bool qrDetecting;
+    bool colorSorting = false;
+    bool colorSortDetected = false;
 
 
 

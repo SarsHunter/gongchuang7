@@ -97,6 +97,21 @@ void MainWindow::initUI()
         if (capturer) capturer->enableCircleDetect(false);
     });
 
+    // ColorSort 任务开始：开启色块检测（遍历红/绿/蓝）
+    connect(m_taskManager, &TaskManager::colorSortStarted, this, [this]() {
+        if (!capturer) openCamera();
+        if (capturer) capturer->enableColorSort(true);
+    });
+
+    // ColorSort 任务完成：关闭色块检测
+    connect(m_taskManager, &TaskManager::colorSortDone, this, [this]() {
+        if (capturer) capturer->enableColorSort(false);
+    });
+
+    // 色块检测结果 → TaskManager
+    connect(capturer, &videothread::colorBlockDetected,
+            m_taskManager, &TaskManager::onColorBlockDetected);
+
     // ── 任务列表信号 ──
     connect(m_taskManager, &TaskManager::queueUpdated,
             this, &MainWindow::updateTaskTable);
@@ -177,6 +192,7 @@ QList<Task> MainWindow::loadTasksFromJson(const QString &filePath)
         {"ArmTrack",  TaskType::ArmTrack},
         {"QRScan",    TaskType::QRScan},
         {"CarAlign",  TaskType::CarAlign},
+        {"ColorSort", TaskType::ColorSort},
     };
 
     for (const QJsonValue &val : doc.array()) {
@@ -414,6 +430,7 @@ void MainWindow::updateTaskTable(const QList<Task> &queue)
         {TaskType::ArmTrack,  "ArmTrack"},
         {TaskType::QRScan,    "QRScan"},
         {TaskType::CarAlign,  "CarAlign"},
+        {TaskType::ColorSort, "ColorSort"},
     };
 
     ui->taskTable->setRowCount(queue.size());

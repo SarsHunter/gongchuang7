@@ -15,6 +15,7 @@ enum class TaskType {
     ArmTrack,   // 机械臂：移到目标 → 视觉追踪 → 放置
     QRScan,     // 扫码，结果写入后续 ArmTrack 的 param
     CarAlign,   // 小车底盘视觉对准（停稳后延时启动）
+    ColorSort,  // 颜色分拣检测，检测到后通知下位机自动抓取放置
 };
 
 // ─── 任务结构体 ─────────────────────────────────────────────
@@ -63,11 +64,14 @@ signals:
     void armTrackColorChanged(int color);
     void chassisAlignStarted(int color);  // CarAlign 开始，通知 MainWindow 开启圆形检测（带颜色）
     void chassisAlignDone();              // CarAlign 完成，通知 MainWindow 关闭圆形检测
+    void colorSortStarted();              // ColorSort 开始，通知 MainWindow 开启色块检测
+    void colorSortDone();                 // ColorSort 完成，通知 MainWindow 关闭色块检测
 
 public slots:
     void onDeviceTaskFinished();               // Car / Arm 完整任务完成
     void onArmSubStepFinished();               // Arm 单步（moveTo / tracking）完成
     void onQRCodeScanned(const QString &text); // 扫码结果回调
+    void onColorBlockDetected(int color);      // 颜色分拣检测到色块
 
 
 private:
@@ -91,6 +95,7 @@ private:
     int  m_backIdx     = 0;       // 后半段当前使用索引
     bool m_qrProcessed = false;   // 防止 qrCodeResult 多次触发
     int  m_qrStep      = 0;       // QRScan 子步骤：0=arm准备中 1=等待扫码结果
+    bool m_colorDetected = false; // ColorSort 防重：只处理第一次检测
 };
 
 #endif // TASKMANAGER_H

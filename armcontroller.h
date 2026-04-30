@@ -27,6 +27,10 @@ public:
 
     void armPlace();
 
+    // 颜色分拣：通知下位机根据颜色自动抓取并放置
+    // 下位机新增 case 0xC5，收到后自动完成整套动作，完成后回复 ArmDone
+    void armColorSort(int color);
+
     // 扫码前姿态：转到扫码方向 + 抬起摄像头
     // 发送 0xAA 0xC3，STM32 完成后回 0xAA BB CC DD → emit actionFinished()
     void armToScanPosition();

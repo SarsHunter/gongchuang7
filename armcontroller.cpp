@@ -191,6 +191,23 @@ void ArmController::armTracking()
     serial->sendData(pkt);
 }
 
+void ArmController::armColorSort(int color)
+{
+    qDebug() << "armColorSort: color=" << color;
+
+    if (!serial || !serial->isOpen()) {
+        emit statusChanged("串口未连接");
+        return;
+    }
+
+    // 协议：0xAA | 0x08 | 0xC5 | color | 0x00 | 0x00 | 0x00 | checksum
+    // 下位机收到后根据颜色自动执行：抓取 → 放到对应盘位
+    QByteArray pkt = build8BytePacket(0xAA, 0xC5,
+                                     static_cast<quint8>(color & 0x0F),
+                                     0x00, 0x00, 0x00);
+    serial->sendData(pkt);
+}
+
 void ArmController::armPlace()
 {
     qDebug() << "执行放置动作";

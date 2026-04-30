@@ -172,6 +172,12 @@ void TaskManager::executeCurrentTask()
             });
         }
         break;
+
+    // ── 颜色分拣检测 ──
+    case TaskType::ColorSort:
+        m_colorDetected = false;
+        emit colorSortStarted();
+        break;
     }
 }
 
@@ -208,24 +214,17 @@ void TaskManager::executeArmStep()
     }
 
     case 1: {
-        int color = m_currentTask.params.value("param", 1).toInt();
-        qDebug() << "[ArmStep 1] startTracking color=" << color;
-        // 通知 MainWindow 开启圆形检测，摄像头才能给机械臂发误差数据
-        emit armTrackColorChanged(color);
-        emit armTrackingStarted();
-        m_arm->startTracking();
+        qDebug() << "[ArmStep 1] CarAlign done, direct armPlace (skip tracking)";
+        // 底盘 CarAlign 已完成视觉对准，不再做机械臂视觉伺服
+        // 直接发送 0xC2 触发下位机抓取/放置
+        m_arm->armPlace();
         break;
     }
 
     case 2:
-        qDebug() << "[ArmStep 2] armPlace";
-        // 视觉对准完成，关闭圆形检测，进入放置阶段
-        emit armTrackingDone();
-        m_arm->armPlace();
-        break;
-
+        // Step1 的 armPlace 完成后，下位机回复 ArmDone，m_armStep 变成 2
+        // 这里直接标记任务完成
     default:
-        // 三步全部完成
         qDebug() << "[ArmStep] ArmTrack finished";
         emit taskFinished();
         advanceToNextTask();
@@ -258,6 +257,14 @@ void TaskManager::onArmSubStepFinished()
         return;
     }
 
+    // ColorSort 任务：收到下位机 ArmDone → 任务完成
+    if (currentType == TaskType::ColorSort) {
+        qDebug() << "[ColorSort] arm action finished";
+        emit taskFinished();
+        advanceToNextTask();
+        return;
+    }
+
     // ← 关键守卫：非 ArmTrack 任务期间收到 actionFinished 直接忽略
     // 防止超时 Timer 在 CarMove/CarTurn 期间触发导致段错误
     if (currentType != TaskType::ArmTrack) return;
@@ -278,6 +285,20 @@ void TaskManager::onDeviceTaskFinished()
 // ─────────────────────────────────────────────────────────────
 // 推进到下一任务
 // ─────────────────────────────────────────────────────────────
+void TaskManager::onColorBlockDetected(int color)
+{
+    if (!m_running) return;
+    if (m_currentIndex < 0 || m_currentIndex >= m_taskQueue.size()) return;
+    if (m_taskQueue[m_currentIndex].type != TaskType::ColorSort) return;
+    if (m_colorDetected) return;
+
+    m_colorDetected = true;
+    qDebug() << "[ColorSort] detected color=" << color << ", sending 0xC5 to STM32";
+
+    emit colorSortDone();
+    m_arm->armColorSort(color);
+}
+
 void TaskManager::advanceToNextTask()
 {
     m_currentIndex++;

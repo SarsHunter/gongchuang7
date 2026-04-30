@@ -21,6 +21,8 @@ videothread::videothread(int camera, QMutex *lock)
     blockDetecting=false;
     circleDetecting=false;
     qrDetecting=false;
+    colorSorting=false;
+    colorSortDetected=false;
 
     scanner.set_config(zbar::ZBAR_NONE,zbar::ZBAR_CFG_ENABLE,1);
 }
@@ -81,6 +83,9 @@ void videothread::run()
 
         if(blockDetecting)
             detectColorBlock(processFrame,mask);
+
+        if(colorSorting)
+            detectColorSorting(processFrame);
 
         if(circleDetecting)
             detectCircle(processFrame,mask);
@@ -501,6 +506,52 @@ void videothread::enableCircleDetect(bool flag)
     if (flag) {
         lostFrames = 0;        // 开启检测时重置丢帧计数
         hasLastCenter = false; // 重新进入全图搜索模式
+    }
+}
+
+void videothread::enableColorSort(bool flag)
+{
+    colorSorting = flag;
+    if (flag) colorSortDetected = false;
+}
+
+void videothread::detectColorSorting(cv::Mat &frame)
+{
+    if (colorSortDetected) return;
+
+    int bestColor = 0;
+    double maxArea = 0;
+
+    int oldType = currentColorType;
+
+    for (int color = 1; color <= 3; color++) {
+        currentColorType = color;
+        cv::Mat mask = createMask(frame);
+
+        cv::Mat cleanMask;
+        cv::morphologyEx(mask, cleanMask, cv::MORPH_OPEN, cv::Mat(), cv::Point(-1,-1), 1);
+        cv::morphologyEx(cleanMask, cleanMask, cv::MORPH_CLOSE, cv::Mat(), cv::Point(-1,-1), 1);
+
+        std::vector<std::vector<cv::Point>> contours;
+        cv::findContours(cleanMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+        for (auto &c : contours) {
+            double area = cv::contourArea(c);
+            if (area < 2000) continue;
+
+            if (area > maxArea) {
+                maxArea = area;
+                bestColor = color;
+            }
+        }
+    }
+
+    currentColorType = oldType;
+
+    if (bestColor > 0) {
+        colorSortDetected = true;
+        qDebug() << "[ColorSort] detected color=" << bestColor;
+        emit colorBlockDetected(bestColor);
     }
 }
 
