@@ -174,11 +174,21 @@ void TaskManager::executeCurrentTask()
         break;
 
     // ── 颜色分拣检测 ──
-    case TaskType::ColorSort:
+    case TaskType::ColorSort: {
         m_colorDetected = false;
         m_colorSortArmSent = false;  // 重置：还没发0xC5，不接受旧ArmDone
-        emit colorSortStarted();
+
+        // 按前半段顺序取当前目标颜色
+        int targetColor = 1; // 默认红色
+        if (m_colorSortIdx < m_colorOrder.size())
+            targetColor = m_colorOrder[m_colorSortIdx];
+        m_currentTask.params["targetColor"] = targetColor;
+
+        qDebug() << "[ColorSort] targetColor=" << targetColor
+                 << "(idx=" << m_colorSortIdx << "/" << m_colorOrder.size() << ")";
+        emit colorSortStarted(targetColor);
         break;
+    }
     }
 }
 
@@ -297,8 +307,19 @@ void TaskManager::onColorBlockDetected(int color)
     if (m_taskQueue[m_currentIndex].type != TaskType::ColorSort) return;
     if (m_colorDetected) return;
 
+    int targetColor = m_currentTask.params.value("targetColor", 1).toInt();
+    if (color != targetColor) {
+        qDebug() << "[ColorSort] detected color=" << color
+                 << " but target=" << targetColor << ", ignoring";
+        return; // 非目标颜色，忽略，继续检测
+    }
+
     m_colorDetected = true;
-    qDebug() << "[ColorSort] detected color=" << color << ", sending 0xC5 to STM32";
+    qDebug() << "[ColorSort] detected target color=" << color
+             << ", sending 0xC5 to STM32";
+
+    // 成功分拣后推进索引
+    m_colorSortIdx++;
 
     emit colorSortDone();
     m_colorSortArmSent = true;   // 标记：已发送0xC5，现在可以收ArmDone了
@@ -358,9 +379,10 @@ void TaskManager::onQRCodeScanned(const QString &text)
     qDebug() << "[TaskManager] QR scanned, front:" << m_colorOrder
              << "back:" << m_colorOrderBack;
 
-    // 每次新扫码后重置索引，让后续 ArmTrack 从新码的头开始取
+    // 每次新扫码后重置索引，让后续 ArmTrack / ColorSort 从新码的头开始取
     m_frontIdx = 0;
     m_backIdx  = 0;
+    m_colorSortIdx = 0;
 
     // 不再预先填充任务队列，改为执行 ArmTrack 时根据 side 参数动态选择
     emit queueUpdated(m_taskQueue); // 刷新任务列表显示

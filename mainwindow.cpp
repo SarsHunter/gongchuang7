@@ -97,10 +97,13 @@ void MainWindow::initUI()
         if (capturer) capturer->enableCircleDetect(false);
     });
 
-    // ColorSort 任务开始：开启色块检测（遍历红/绿/蓝）
-    connect(m_taskManager, &TaskManager::colorSortStarted, this, [this]() {
+    // ColorSort 任务开始：开启目标颜色色块检测
+    connect(m_taskManager, &TaskManager::colorSortStarted, this, [this](int targetColor) {
         if (!capturer) openCamera();
-        if (capturer) capturer->enableColorSort(true);
+        if (capturer) {
+            capturer->setColorType(targetColor);
+            capturer->enableColorSort(true);
+        }
     });
 
     // ColorSort 任务完成：关闭色块检测
@@ -109,8 +112,7 @@ void MainWindow::initUI()
     });
 
     // 色块检测结果 → TaskManager
-    connect(capturer, &videothread::colorBlockDetected,
-            m_taskManager, &TaskManager::onColorBlockDetected);
+    // 注意：必须在 capturer 创建后连接，见 openCamera()
 
     // ── 任务列表信号 ──
     connect(m_taskManager, &TaskManager::queueUpdated,
@@ -252,6 +254,9 @@ void MainWindow::openCamera()
 
     connect(capturer, &videothread::qrCodeResult,
             m_taskManager, &TaskManager::onQRCodeScanned);
+
+    connect(capturer, &videothread::colorBlockDetected,
+            m_taskManager, &TaskManager::onColorBlockDetected);
 
     connect(capturer, &videothread::circleError,
             m_armCtrl, &ArmController::updateError, Qt::QueuedConnection);

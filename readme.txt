@@ -42,6 +42,10 @@ color = 3: 蓝
       "dist": 90.0
     }
 },
+
+ { "type": "ColorSort", "params": {} },
+  { "type": "ColorSort", "params": {} },
+  { "type": "ColorSort", "params": {} },
 =====================================（json旋转格式，最后一个不要加逗号，在[]内加入才有效）  
 side =0;前半段
 side =1;后半段

@@ -64,7 +64,7 @@ signals:
     void armTrackColorChanged(int color);
     void chassisAlignStarted(int color);  // CarAlign 开始，通知 MainWindow 开启圆形检测（带颜色）
     void chassisAlignDone();              // CarAlign 完成，通知 MainWindow 关闭圆形检测
-    void colorSortStarted();              // ColorSort 开始，通知 MainWindow 开启色块检测
+    void colorSortStarted(int targetColor); // ColorSort 开始，通知 MainWindow 开启目标颜色色块检测
     void colorSortDone();                 // ColorSort 完成，通知 MainWindow 关闭色块检测
 
 public slots:
@@ -91,9 +91,10 @@ private:
 
     QList<int> m_colorOrder;      // QRScan 解析出的前半段颜色顺序
     QList<int> m_colorOrderBack;  // QRScan 解析出的后半段颜色顺序
-    int  m_frontIdx    = 0;       // 前半段当前使用索引
-    int  m_backIdx     = 0;       // 后半段当前使用索引
-    bool m_qrProcessed = false;   // 防止 qrCodeResult 多次触发
+    int  m_frontIdx     = 0;       // 前半段当前使用索引（ArmTrack）
+    int  m_backIdx      = 0;       // 后半段当前使用索引
+    int  m_colorSortIdx = 0;       // ColorSort 从前半段取颜色的索引
+    bool m_qrProcessed  = false;   // 防止 qrCodeResult 多次触发
     int  m_qrStep      = 0;       // QRScan 子步骤：0=arm准备中 1=等待扫码结果
     bool m_colorDetected = false; // ColorSort 防重：只处理第一次检测
     bool m_colorSortArmSent = false; // ColorSort：只有发了0xC5后才接受ArmDone

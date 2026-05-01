@@ -73,9 +73,9 @@
      <widget class="QSlider" name="sMaxSlider">
       <property name="geometry">
        <rect>
-        <x>90</x>
+        <x>70</x>
         <y>260</y>
-        <width>160</width>
+        <width>130</width>
         <height>16</height>
        </rect>
       </property>
@@ -92,7 +92,7 @@
      <widget class="QSpinBox" name="sMaxSpin">
       <property name="geometry">
        <rect>
-        <x>30</x>
+        <x>20</x>
         <y>260</y>
         <width>42</width>
         <height>26</height>
@@ -105,7 +105,7 @@
      <widget class="QSpinBox" name="sMinSpin">
       <property name="geometry">
        <rect>
-        <x>30</x>
+        <x>20</x>
         <y>300</y>
         <width>42</width>
         <height>26</height>
@@ -118,8 +118,8 @@
      <widget class="QSpinBox" name="vMaxSpin">
       <property name="geometry">
        <rect>
-        <x>30</x>
-        <y>340</y>
+        <x>220</x>
+        <y>260</y>
         <width>42</width>
         <height>26</height>
        </rect>
@@ -131,8 +131,8 @@
      <widget class="QSpinBox" name="vMinSpin">
       <property name="geometry">
        <rect>
-        <x>30</x>
-        <y>380</y>
+        <x>220</x>
+        <y>300</y>
         <width>42</width>
         <height>26</height>
        </rect>
@@ -144,9 +144,9 @@
      <widget class="QSlider" name="sMinSlider">
       <property name="geometry">
        <rect>
-        <x>90</x>
+        <x>70</x>
         <y>300</y>
-        <width>160</width>
+        <width>130</width>
         <height>16</height>
        </rect>
       </property>
@@ -160,9 +160,9 @@
      <widget class="QSlider" name="vMaxSlider">
       <property name="geometry">
        <rect>
-        <x>90</x>
-        <y>350</y>
-        <width>160</width>
+        <x>270</x>
+        <y>260</y>
+        <width>130</width>
         <height>16</height>
        </rect>
       </property>
@@ -176,9 +176,9 @@
      <widget class="QSlider" name="vMinSlider">
       <property name="geometry">
        <rect>
-        <x>90</x>
-        <y>380</y>
-        <width>160</width>
+        <x>270</x>
+        <y>300</y>
+        <width>130</width>
         <height>16</height>
        </rect>
       </property>
@@ -192,10 +192,10 @@
      <widget class="QSlider" name="hMaxSlider">
       <property name="geometry">
        <rect>
-        <x>280</x>
+        <x>460</x>
         <y>260</y>
         <width>20</width>
-        <height>131</height>
+        <height>100</height>
        </rect>
       </property>
       <property name="maximum">
@@ -208,10 +208,10 @@
      <widget class="QSlider" name="hMinSlider">
       <property name="geometry">
        <rect>
-        <x>330</x>
+        <x>520</x>
         <y>260</y>
         <width>16</width>
-        <height>131</height>
+        <height>100</height>
        </rect>
       </property>
       <property name="maximum">
@@ -224,8 +224,8 @@
      <widget class="QSpinBox" name="hMaxSpin">
       <property name="geometry">
        <rect>
-        <x>270</x>
-        <y>400</y>
+        <x>450</x>
+        <y>370</y>
         <width>42</width>
         <height>26</height>
        </rect>
@@ -237,8 +237,8 @@
      <widget class="QSpinBox" name="hMinSpin">
       <property name="geometry">
        <rect>
-        <x>320</x>
-        <y>400</y>
+        <x>510</x>
+        <y>370</y>
         <width>42</width>
         <height>26</height>
        </rect>

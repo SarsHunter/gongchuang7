@@ -10,8 +10,8 @@ videothread::videothread(int camera, QMutex *lock)
 
     data_lock=lock;
 
-    redThreshold ={170,180,43,255,46,255};
-
+    //redThreshold ={170,180,43,255,46,255};
+    redThreshold = {0, 16, 73, 255, 25, 255};
     greenThreshold ={35,85,43,255,46,255};
     blueThreshold  ={100,130,43,255,46,255};
 
@@ -519,39 +519,57 @@ void videothread::detectColorSorting(cv::Mat &frame)
 {
     if (colorSortDetected) return;
 
-    int bestColor = 0;
-    double maxArea = 0;
+    // 只检测当前设置的目标颜色（由 TaskManager 通过 setColorType 设置）
+    cv::Mat mask = createMask(frame);
 
-    int oldType = currentColorType;
+    cv::Mat cleanMask;
+    cv::morphologyEx(mask, cleanMask, cv::MORPH_OPEN, cv::Mat(), cv::Point(-1,-1), 1);
+    cv::morphologyEx(cleanMask, cleanMask, cv::MORPH_CLOSE, cv::Mat(), cv::Point(-1,-1), 1);
 
-    for (int color = 1; color <= 3; color++) {
-        currentColorType = color;
-        cv::Mat mask = createMask(frame);
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(cleanMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
-        cv::Mat cleanMask;
-        cv::morphologyEx(mask, cleanMask, cv::MORPH_OPEN, cv::Mat(), cv::Point(-1,-1), 1);
-        cv::morphologyEx(cleanMask, cleanMask, cv::MORPH_CLOSE, cv::Mat(), cv::Point(-1,-1), 1);
+    double bestArea = 0;
+    std::vector<cv::Point> bestContour;
 
-        std::vector<std::vector<cv::Point>> contours;
-        cv::findContours(cleanMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    for (auto &c : contours) {
+        double area = cv::contourArea(c);
+        if (area < 2000) continue;
 
-        for (auto &c : contours) {
-            double area = cv::contourArea(c);
-            if (area < 2000) continue;
+        // 1. solidity（凸包率）：排除不规则噪声斑点
+        std::vector<cv::Point> hull;
+        cv::convexHull(c, hull);
+        double hullArea = cv::contourArea(hull);
+        double solidity = (hullArea > 0) ? (area / hullArea) : 0;
+        if (solidity < 0.8) continue;
 
-            if (area > maxArea) {
-                maxArea = area;
-                bestColor = color;
-            }
+        // 2. 长宽比：排除细长条反光
+        cv::Rect bounding = cv::boundingRect(c);
+        double aspect = (double)bounding.width / bounding.height;
+        if (aspect < 0.4 || aspect > 2.5) continue;
+
+        // 3. 圆形度：轮廓面积 / 最小外接圆面积，接近 1 说明是圆
+        cv::Point2f center;
+        float radius = 0;
+        cv::minEnclosingCircle(c, center, radius);
+        double circleArea = CV_PI * radius * radius;
+        double circularity = (circleArea > 0) ? (area / circleArea) : 0;
+        if (circularity < 0.6) continue;
+
+        if (area > bestArea) {
+            bestArea = area;
+            bestContour = c;
         }
     }
 
-    currentColorType = oldType;
-
-    if (bestColor > 0) {
+    if (!bestContour.empty()) {
         colorSortDetected = true;
-        qDebug() << "[ColorSort] detected color=" << bestColor;
-        emit colorBlockDetected(bestColor);
+        qDebug() << "[ColorSort] detected target color=" << currentColorType
+                 << "area=" << bestArea;
+        emit colorBlockDetected(currentColorType);
+    } else if (!contours.empty()) {
+        // 调试用：有轮廓但全部被过滤掉时，输出提示
+        qDebug() << "[ColorSort] contours found but all filtered out for color=" << currentColorType;
     }
 }
 

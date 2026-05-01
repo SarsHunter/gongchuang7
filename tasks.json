@@ -1,4 +1,12 @@
 [
+  {
+    "type": "QRScan",
+    "params": {}
+},
+
+
+
+
 
 {
     "type": "QRScan",
@@ -67,18 +75,10 @@
     }
   },
 
-{
-  "type": "ArmTrack",
-  "params": {  "op": 1 ,"side": 0}
-},
-{
-  "type": "ArmTrack",
-  "params": {  "op": 1 ,"side": 0 }
-},
-{
-  "type": "ArmTrack",
-  "params": { "op": 1 ,"side": 0 }
-},
+{ "type": "ColorSort", "params": {} },
+{ "type": "ColorSort", "params": {} },
+{ "type": "ColorSort", "params": {} },
+
 
 {
     "type": "CarMove",
@@ -103,6 +103,9 @@
       "dist": 95.0
     }
 },
+
+{ "type": "CarAlign", "params": { "color": 1 } },
+
 {
   "type": "ArmTrack",
   "params": {  "op": 3 ,"side": 0}
