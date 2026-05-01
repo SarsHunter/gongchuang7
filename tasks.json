@@ -1,48 +1,52 @@
 [
-  {
-    "type": "QRScan",
-    "params": {}
-},
-
-
-
-
-
+ 
 {
     "type": "QRScan",
     "params": {}
 },
 
+  { "type": "DiskMove", "params": { "side": 0 } },
 {
   "type": "ArmTrack",
   "params": {  "op": 1 ,"side": 0}
 },
+{ "type": "DiskMove", "params": { "side": 0 } },
 {
-  "type": "ArmTrack",
-  "params": {  "op": 1 ,"side": 0 }
+ "type": "ArmTrack",
+ "params": { "op": 1 ,"side": 0 }
 },
+{ "type": "DiskMove", "params": { "side": 0 } },
 {
-  "type": "ArmTrack",
-  "params": { "op": 1 ,"side": 0 }
+ "type": "ArmTrack",
+ "params": { "op": 1 ,"side": 0 }
 },
+{ "type": "DiskMove", "params": { "to": 2 } },
+
+{ "type": "DiskMove", "params": { "side": 1 } },
 
 {
-  "type": "ArmTrack",
-  "params": {  "op": 3 ,"side": 1}
+ "type": "ArmTrack",
+ "params": { "op": 3 ,"side": 1}
 },
+{ "type": "DiskMove", "params": { "side": 1 } },
 {
-  "type": "ArmTrack",
-  "params": {  "op": 3 ,"side": 1 }
+ "type": "ArmTrack",
+ "params": { "op": 3 ,"side": 1 }
 },
+{ "type": "DiskMove", "params": { "side": 1 } },
 {
-  "type": "ArmTrack",
-  "params": { "op": 3 ,"side": 1 }
+ "type": "ArmTrack",
+ "params": { "op": 3 ,"side": 1 }
 },
-
+{ "type": "DiskMove", "params": { "to": 2 } },
 
 { "type": "CarAlign", "params": { "color": 2 } },
 
 
+{
+    "type": "QRScan",
+    "params": {}
+},
 
   {
     "type": "CarMove",

@@ -70,6 +70,41 @@ void CarController::carMoveDistance(int direction, float v, float d)
     emit statusChanged(currentStatus);
 }
 
+void CarController::carDiskMove(int fromSlot, int toSlot)
+{
+    if (fromSlot == toSlot) {
+        qDebug() << "[CarCtrl] already at slot" << fromSlot << ", wait 800ms for chassis stable";
+        QTimer::singleShot(800, this, [this]() {
+            emit taskFinished();
+        });
+        return;
+    }
+
+    // 盘位布局: 1(左/后) -- 2(中/默认) -- 3(右/前)，每格13cm
+    // 小车在左，拾取位在右
+    // dir: 1=前进(向右/朝向拾取位), 2=后退(向左/朝向小车)
+    static const int dirTable[4][4] = {
+        {0, 0, 0, 0},
+        {0, 0, 1, 1},    // 1→2: 前进(右)13, 1→3: 前进(右)26
+        {0, 2, 0, 1},    // 2→1: 后退(左)13, 2→3: 前进(右)13
+        {0, 2, 2, 0},    // 3→1: 后退(左)26, 3→2: 后退(左)13
+    };
+    static const float distTable[4][4] = {
+        {0, 0,   0,   0},
+        {0, 0,  13,  26},
+        {0, 13,  0,  13},
+        {0, 26, 13,   0},
+    };
+
+    int dir = dirTable[fromSlot][toSlot];
+    float dist = distTable[fromSlot][toSlot];
+
+    qDebug() << "[CarCtrl] diskMove from" << fromSlot << "to" << toSlot
+             << "dir=" << dir << "dist=" << dist;
+
+    carMoveDistance(dir, 30.0f, dist);
+}
+
 void CarController::carMoveSpeed(float speed)
 {
     if (!serial->isOpen()) {

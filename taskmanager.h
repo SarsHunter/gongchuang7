@@ -16,6 +16,7 @@ enum class TaskType {
     QRScan,     // 扫码，结果写入后续 ArmTrack 的 param
     CarAlign,   // 小车底盘视觉对准（停稳后延时启动）
     ColorSort,  // 颜色分拣检测，检测到后通知下位机自动抓取放置
+    DiskMove,   // 盘位移动：在滑轨固定盘位之间移动（1~3号位）
 };
 
 // ─── 任务结构体 ─────────────────────────────────────────────
@@ -98,6 +99,8 @@ private:
     int  m_qrStep      = 0;       // QRScan 子步骤：0=arm准备中 1=等待扫码结果
     bool m_colorDetected = false; // ColorSort 防重：只处理第一次检测
     bool m_colorSortArmSent = false; // ColorSort：只有发了0xC5后才接受ArmDone
+
+    int m_currentSlot = 2;  // 当前底盘盘位，默认2号位
 };
 
 #endif // TASKMANAGER_H

@@ -195,6 +195,7 @@ QList<Task> MainWindow::loadTasksFromJson(const QString &filePath)
         {"QRScan",    TaskType::QRScan},
         {"CarAlign",  TaskType::CarAlign},
         {"ColorSort", TaskType::ColorSort},
+        {"DiskMove",  TaskType::DiskMove},
     };
 
     for (const QJsonValue &val : doc.array()) {
@@ -436,6 +437,7 @@ void MainWindow::updateTaskTable(const QList<Task> &queue)
         {TaskType::QRScan,    "QRScan"},
         {TaskType::CarAlign,  "CarAlign"},
         {TaskType::ColorSort, "ColorSort"},
+        {TaskType::DiskMove,  "DiskMove"},
     };
 
     ui->taskTable->setRowCount(queue.size());

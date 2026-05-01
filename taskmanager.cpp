@@ -66,6 +66,8 @@ void TaskManager::startTasks()
     m_qrProcessed  = false;    // ← 加这行
     m_frontIdx     = 0;        // 重置前半段索引
     m_backIdx      = 0;        // 重置后半段索引
+    m_colorSortIdx = 0;        // 重置 ColorSort 索引
+    m_currentSlot  = 2;        // 重置底盘盘位为默认2号位
 
     emit taskStarted();
     executeCurrentTask();
@@ -81,6 +83,7 @@ void TaskManager::stopTasks()
     m_currentIndex = -1;       // ← 加这行
     m_frontIdx     = 0;        // 重置前半段索引
     m_backIdx      = 0;        // 重置后半段索引
+    m_currentSlot  = 2;        // 重置底盘盘位为默认2号位
     m_taskQueue.clear();
 
     emit taskStopped();
@@ -131,12 +134,13 @@ void TaskManager::executeCurrentTask()
         m_armStep = 0;
 
         // 检测是否开始了一个新的同 side ArmTrack 组
-        // （前一个任务不是同 side 的 ArmTrack → 重置索引，从头取颜色）
+        // （前一个任务不是同 side 的 ArmTrack/DiskMove → 重置索引，从头取颜色）
         if (m_currentIndex > 0) {
             const Task &prev = m_taskQueue[m_currentIndex - 1];
             int currSide = m_currentTask.params.value("side", 0).toInt();
-            if (prev.type != TaskType::ArmTrack ||
-                prev.params.value("side", 0).toInt() != currSide) {
+            bool isSameGroup = (prev.type == TaskType::ArmTrack || prev.type == TaskType::DiskMove)
+                               && prev.params.value("side", 0).toInt() == currSide;
+            if (!isSameGroup) {
                 if (currSide == 0) m_frontIdx = 0;
                 else               m_backIdx  = 0;
             }
@@ -187,6 +191,30 @@ void TaskManager::executeCurrentTask()
         qDebug() << "[ColorSort] targetColor=" << targetColor
                  << "(idx=" << m_colorSortIdx << "/" << m_colorOrder.size() << ")";
         emit colorSortStarted(targetColor);
+        break;
+    }
+
+    // ── 盘位移动 ──
+    case TaskType::DiskMove: {
+        int from = m_currentTask.params.value("from", m_currentSlot).toInt();
+        int to   = m_currentTask.params.value("to", 2).toInt();
+
+        // 支持从扫码结果自动取目标盘位（只读不推，索引由 ArmTrack 推进）
+        if (m_currentTask.params.contains("side")) {
+            int side = m_currentTask.params.value("side", 0).toInt();
+            to = 2; // 默认2号位
+            if (side == 0) {
+                if (m_frontIdx < m_colorOrder.size())
+                    to = m_colorOrder[m_frontIdx];  // 只读，不推进
+            } else {
+                if (m_backIdx < m_colorOrderBack.size())
+                    to = m_colorOrderBack[m_backIdx];  // 只读，不推进
+            }
+        }
+
+        qDebug() << "[TaskManager] DiskMove from=" << from << "to=" << to;
+        m_car->carDiskMove(from, to);
+        m_currentSlot = to;  // 更新当前盘位
         break;
     }
     }

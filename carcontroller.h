@@ -18,6 +18,10 @@ public:
     // 距离控制 (单位: cm)
     void carMoveDistance(int direction , float v ,float d);
 
+    // 盘位移动：在滑轨上的固定盘位之间移动（1~3号位，默认2号位）
+    // 每格间隔10cm，前后直线移动，不影响全局坐标
+    void carDiskMove(int fromSlot, int toSlot);
+
     // 转向
     void carTurn(int angle, int8_t dir);
 

@@ -15,14 +15,6 @@ color = 3: 蓝
 
 0是zuo旋，1是you旋
 ====================================
-{
-  "type": "ArmTrack",
-  "params": 
-    { 
-    "param": 1, 
-    "op": 1 
-    }
-},
 
 {
     "type": "CarTurn",
@@ -31,6 +23,11 @@ color = 3: 蓝
       "angle": 90,
       "dir": 0
     }
+},
+
+{
+  "type": "ArmTrack",
+  "params": { "op": 3 ,"side": 1 }
 },
 
 {
@@ -46,6 +43,8 @@ color = 3: 蓝
  { "type": "ColorSort", "params": {} },
   { "type": "ColorSort", "params": {} },
   { "type": "ColorSort", "params": {} },
+
+    { "type": "DiskMove", "params": { "side": 0 } },
 =====================================（json旋转格式，最后一个不要加逗号，在[]内加入才有效）  
 side =0;前半段
 side =1;后半段
