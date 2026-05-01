@@ -17,7 +17,7 @@ color = 3: 蓝
 ====================================
 
 {
-    "type": "CarTurn",
+    "type": "CarTurn",                          旋转的
     "params": 
     {
       "angle": 90,
@@ -26,12 +26,12 @@ color = 3: 蓝
 },
 
 {
-  "type": "ArmTrack",
+  "type": "ArmTrack",                         夹取的
   "params": { "op": 3 ,"side": 1 }
 },
 
 {
-    "type": "CarMove",
+    "type": "CarMove",                        这个是移动的
     "params": 
     {
       "dir": 1,
@@ -44,9 +44,12 @@ color = 3: 蓝
   { "type": "ColorSort", "params": {} },
   { "type": "ColorSort", "params": {} },
 
-    { "type": "DiskMove", "params": { "side": 0 } },
+    { "type": "DiskMove", "params": { "side": 0 } },→后面插ArmTrack
+  
+    { "type": "DiskMove", "params": { "to": 2 } },这个是返回2号位置每个夹取之后调用一次
+
 =====================================（json旋转格式，最后一个不要加逗号，在[]内加入才有效）  
-side =0;前半段
+side =0;扫码前半段
 side =1;后半段
 
 
